@@ -12,15 +12,15 @@ class Logger {
     }
   }
 
-  get getlog() {
-    return this.log;
-  }
-
   static logToString(log) {
     return log
       .map(function([namespace, name, session, date, ...rest])
 	      {return "" + namespace + " " + name + " " + session + " " + date})
       .join('\n')
+  }
+
+  get getlog() {
+    return Logger.logToString(this.log);
   }
 
   augment(namespace, withFn) {
