@@ -1,0 +1,37 @@
+graph TD;
+    Start("Choosing a method to instrument js in a webapp like Wordpress")
+    Start --> F{Context?}
+    F -->|Nodejs| J
+    F -->|Browser| H{Source?}
+    H -->|Yes| J["
+<li>compile time</li>
+<li>source modification</li>"]
+    H -->|No| K{Extension?}
+    K -->|No| O[Wrap existing functions] 
+    K -->|Yes| L{before_start}
+    L -->|No| O
+    L -->|Yes| M[Mutation Observer with Iroh]
+    M --> N(like addblock)
+    J --> P("
+<li>Modification before first execution</li>
+<li>Fast</li>")
+    N --> P
+
+
+%%    B1[Modify before first run]
+%%    B2[Fast]
+%%    B3[General/Simple]
+%%    B4[Work everywhere/Dont need maintain]
+%%    B5[Special requirements]
+
+%%    J --> B1
+%%    J --> B2
+%%    J --> B3
+
+%%    M --> B2
+%%    M --> B1
+%%    M --> B5
+%%    M --> B4
+
+%%    O --> B3
+%%    O --> B4
