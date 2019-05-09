@@ -4,4 +4,4 @@
 
 'use strict';
 
-alert('original in src')
+console.log('original in src')
