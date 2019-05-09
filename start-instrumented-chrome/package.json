@@ -1,0 +1,13 @@
+{
+  "name": "start-instrumented-chrome",
+  "version": "1.0.0",
+  "description": "start a chrome instance instrumented with puppeteer",
+  "main": "fps.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "quentin le dilavrec",
+  "dependencies": {
+    "puppeteer": "^1.15.0"
+  }
+}
