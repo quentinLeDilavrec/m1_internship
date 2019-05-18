@@ -2,12 +2,20 @@
   "name": "start-instrumented-chrome",
   "version": "1.0.0",
   "description": "start a chrome instance instrumented with puppeteer",
-  "main": "fps.js",
+  "main": "script.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node script.ts",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc script.ts"
   },
   "author": "quentin le dilavrec",
   "dependencies": {
     "puppeteer": "^1.15.0"
+  },
+  "devDependencies": {
+    "@types/puppeteer": "^1.12.4",
+    "chrome-remote-debug-protocol": "^1.2.20180422",
+    "tsc": "^1.20150623.0",
+    "typescript": "^3.4.5"
   }
 }
