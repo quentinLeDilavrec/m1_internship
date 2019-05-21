@@ -275,5 +275,5 @@ async function instrument_fetch(page: puppeteer.Page) {
 
   const page2 = await browser.newPage()
   await instrument_fetch(page2)
-  await page2.goto('file:///home/quentin/Documents/cours/M1/stage/ongit/start-instrumented-chrome/index.html')
+  await page2.goto('file:///'+ __dirname.split('/').slice(0,-1).join("/") +'/tests/basic/index.html')
 })();
