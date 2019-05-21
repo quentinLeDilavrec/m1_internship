@@ -43,12 +43,13 @@ function wrap(wrapper, url, callback) {
     switch (wrapper) {
         case "Iroh":
             getcode(url, code => {
+                // if (url==="https://unpkg.com/lodash@4.17.11/lodash.min.js")
                 callback(`irohLogger.augment(\`${code_escape(code)}\`);`)
             })
             break;
 
         default:
-            callback("")
+            callback("aaa")
             break;
     }
 }
@@ -60,8 +61,7 @@ let server = http.createServer(function (request, response) {
         const path = parsedurl.pathname
         response.writeHead(200, { "Content-Type": "text/javascript" });
 
-        if (path !== "") {
-            console.log(path)
+        if (path !== "/") {
             if (path === "/IrohLogger/script.js") response.end(fs.readFileSync('../IrohLogger/script.js', 'utf8'))
             else if (path === "/IrohMutationObserverLogger/script.js") response.end(fs.readFileSync('../IrohMutationObserverLogger/script.js', 'utf8'))
             else if (path === "/alert.js") response.end("console.log('remote js')")
@@ -80,17 +80,17 @@ let server = http.createServer(function (request, response) {
         response.setHeader("Access-Control-Max-Age", "1728000");
         function logToString(log) {
             return log
-                .map(function ([namespace, session, date, likeIroh]) { return "" + namespace + " " + likeIroh.name + " " + session + " " + date })
+                .map(([namespace, session, date, likeIroh]) => { 
+                    return `${namespace} ${likeIroh.src} ${likeIroh.name} ${session} ${date}`})
                 .join('\n')
         }
         const chunks = [];
         request.on('data', (chunk) => {
             chunks.push(chunk)
         })
-        request.on('data', function () {
-            const s = Buffer.concat(chunks).toString()
-            console.log(s)
-            console.log(logToString(JSON.parse(s)))
+        request.on('end', function () {
+            //console.log(Buffer.concat(chunks).toString())
+            console.log(logToString(JSON.parse(Buffer.concat(chunks).toString())))
             response.end()
         })
     } else if (request.method == "OPTIONS") {
