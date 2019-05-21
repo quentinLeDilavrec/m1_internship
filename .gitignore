@@ -1,2 +1,4 @@
 synoptic/
 **/node_modules/
+**/types/
+**/out/
