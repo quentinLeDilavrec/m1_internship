@@ -4,7 +4,7 @@
   "description": "start a chrome instance instrumented with puppeteer",
   "main": "script.ts",
   "scripts": {
-    "run": "tsc -p . && node out/script.js",
+    "start": "npm run build && node out/script.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc -p ."
   },
