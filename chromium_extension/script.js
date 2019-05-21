@@ -3,27 +3,34 @@
 const way = "Iroh" // "Basic"
 let scripts = []
 
+function isLocal(url) {
+  const tmp = document.createElement("a")
+  tmp.href = url
+  return tmp.host !== window.location.host
+}
+
+function getcode(url) {
+  if (isLocal(url)) {
+    let code = ""
+    let xhr = new XMLHttpRequest();
+    xhr.open("GET", url, false);
+    xhr.send(null);
+    if (xhr.status === 200) {
+      code = xhr.responseText
+    }
+    return code
+  } else { throw (`${url} is not local`) }
+}
+
 if (way === "Iroh") {
   const Iroh_s = document.createElement("script")
-  Iroh_s.src = "https://cdn.rawgit.com/maierfelix/Iroh/master/dist/iroh-browser.js"
+  // Iroh_s.src = "https://cdn.rawgit.com/maierfelix/Iroh/master/dist/iroh-browser.js"
+  Iroh_s.innerHTML = getcode("https://cdn.rawgit.com/maierfelix/Iroh/master/dist/iroh-browser.js")
   Iroh_s.async = false;
   Iroh_s.type = "text/javascript"
   scripts.push(Iroh_s)
 }
 
-function getcode(url) {
-  if (url.slice(0, 4) === "http") {
-    // url = 'https://cors-anywhere.herokuapp.com/'+url
-  } else if (url !== "") { throw ("not http" + url + "a") }
-  let code = ""
-  let xhr = new XMLHttpRequest();
-  xhr.open("GET", url, false);
-  xhr.send(null);
-  if (xhr.status === 200) {
-    code = xhr.responseText
-  }
-  return code
-}
 
 function f() {
   alert("in f")
@@ -138,7 +145,7 @@ function f() {
 };
 
 const s = document.createElement("script")
-const url = "http://localhost:8000/" + way + "MutationObserver" + "Logger/script.js";
+const url = `http://localhost:8000/${way}${"MutationObserver"}Logger/script.js`;
 s.innerHTML = getcode(url)
 s.async = false;
 s.type = "text/javascript"
