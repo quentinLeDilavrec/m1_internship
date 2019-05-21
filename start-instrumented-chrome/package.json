@@ -10,9 +10,15 @@
   },
   "author": "quentin le dilavrec",
   "dependencies": {
+    "@babel/traverse": "^7.4.4",
+    "@babel/types": "^7.4.4",
+    "@types/babel__core": "^7.1.2",
+    "babel": "^6.23.0",
     "puppeteer": "^1.15.0"
   },
   "devDependencies": {
+    "@babel/core": "^7.4.4",
+    "@babel/node": "^7.2.2",
     "@types/puppeteer": "^1.12.4",
     "chrome-remote-debug-protocol": "^1.2.20180422",
     "tsc": "^1.20150623.0",

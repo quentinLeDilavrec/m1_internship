@@ -6,7 +6,7 @@
         {
             "label": "build",
             "type": "shell",
-            "command": "tsc script.ts tsconfig.json"
+            "command": "tsc -p ."
         }
     ]
 }

@@ -10,7 +10,7 @@
             "type": "node",
             "request": "launch",
             "name": "Launch Program",
-            "program": "${workspaceFolder}/script.ts",
+            "program": "${workspaceFolder}/out/script.js",
             "preLaunchTask": "build",
             "outFiles": [
                 "${workspaceFolder}/**/*.js"
