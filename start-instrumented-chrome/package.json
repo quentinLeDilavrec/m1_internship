@@ -6,7 +6,7 @@
   "scripts": {
     "start": "npm run build && node out/script.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc -p ."
+    "build": "npx tsc -p ."
   },
   "author": "quentin le dilavrec",
   "dependencies": {
