@@ -331,8 +331,8 @@ async function instrument_fetch(page: puppeteer.Page, apply_babel = false) {
   page.on("popup", newpage => instrument_fetch(newpage))
   const client = await page.target().createCDPSession();
 
-  const dirname = require('path').join(require('os').homedir(),'/js_intercept_data/browser/v2/');
-  fs.mkdirSync(dirname, { recursive: true });
+  const dirname = '/tmp/behavior_analysis_traces/';//require('path').join(require('os').homedir(),'/js_intercept_data/browser/v2/');
+  fs.mkdirSync(dirname);
   //load dependency for inline scripts modification
   await page.evaluateOnNewDocument(babel_js_src)
   const file = fs.openSync(dirname + Math.random(), 'w')
