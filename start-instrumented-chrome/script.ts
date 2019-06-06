@@ -385,7 +385,9 @@ async function instrument_fetch(page: puppeteer.Page, apply_babel = false) {
 (async () => {
   // instanciating browser
   const options = { headless: false, dumpio:true, pipe: false };
-  const browser = await puppeteer.launch({ ...options, args: puppeteer.defaultArgs(options) })
+  const launch_params = process.argv[2] === '--no-sandbox' ? [...puppeteer.defaultArgs(options), '--no-sandbox', '--disable-setuid-sandbox'] : puppeteer.defaultArgs(options);
+  console.log(process.argv,launch_params);
+  const browser = await puppeteer.launch({ ...options, args: launch_params})
   browser.on('disconnected',()=>console.log('finished'))
   // instanciating starting pages
   const [page] = await browser.pages()
