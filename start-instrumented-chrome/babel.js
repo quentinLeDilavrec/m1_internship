@@ -3701,12 +3701,13 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	  NodePath.prototype.getPathLocation = function getPathLocation() {
 	    var parts = [];
-	    var path = this;
-	    do {
-	      var key = path.key;
-	      if (path.inList) key = path.listKey + "[" + key + "]";
-	      parts.unshift(key);
-	    } while (path = path.parentPath);
+			var path = this;
+			do {
+				let key = path.key;
+				if (path.inList) key = `${path.listKey}[${key}]`;
+				parts.unshift(key);
+			} while (path = path.parentPath);
+			parts.unshift("program");
 	    return parts.join(".");
 	  };
 

@@ -32,14 +32,20 @@ function transformer_container(URL) {
 
 
     function make_logger_expr(
+      curr_file: string,
+      path: string,
       fn_val: btypes.Expression,
       ...params: (btypes.SpreadElement | btypes.Expression)[]) {
-
+      if (curr_file === 'unknown') curr_file = undefined
       return btypes.expressionStatement(
         btypes.callExpression(
-          btypes.identifier('globalThis.logger.push'),
+          btypes.identifier('globalThis.logger'),
           [btypes.arrayExpression(
-            [btypes.stringLiteral(URL), fn_val, ...params])]))
+            [
+              btypes.stringLiteral(curr_file || URL),
+              btypes.stringLiteral(path),
+              fn_val,
+              ...params])]))
     }
 
 
@@ -48,19 +54,28 @@ function transformer_container(URL) {
       visitor: {
         FunctionDeclaration(path) {
           path.node.body.body.unshift(
-            make_logger_expr(path.node.id, btypes.spreadElement(
-              btypes.identifier('arguments'))))
+            make_logger_expr((this as any).file.opts.filename,
+              path.getPathLocation(),
+              btypes.memberExpression(path.node.id, btypes.identifier("name")),
+              btypes.spreadElement(
+                btypes.identifier('arguments'))))
         },
         FunctionExpression(path) {
-          let name = (path.node.loc)? 
-            `anonymous_${i++}:`+path.node.loc.start.line+':'+path.node.loc.start.column :
-            path.getPathLocation()+`:anonymous_${i++}`;
+          let name = (path.node.loc) ?
+            `anonymous_${i++}:` + path.node.loc.start.line + ':' + path.node.loc.start.column :
+            `:anonymous_${i++}`;
           path.node.body.body.unshift(
-            make_logger_expr(btypes.stringLiteral(name),
+            make_logger_expr(
+              (this as any).file.opts.filename,
+              path.getPathLocation(),
+              btypes.stringLiteral(name),
               btypes.spreadElement(btypes.identifier('arguments'))))
         },
         ArrowFunctionExpression(path) {
-          let v = make_logger_expr(btypes.stringLiteral(`anonymous_${i++}:${path.node.loc.start.line}:${path.node.loc.start.column}`),
+          let v = make_logger_expr(
+            (this as any).file.opts.filename,
+            path.getPathLocation(),
+            btypes.stringLiteral(`anonymous_${i++}:${path.node.loc.start.line}:${path.node.loc.start.column}`),
             ...path.node.params.map(param2exp));
           if (path.node.body.type === 'BlockStatement') {
             path.node.body.body.unshift(v)
@@ -76,10 +91,95 @@ function transformer_container(URL) {
 
 const babel_js_src = fs.readFileSync("babel.js", 'utf8')
 
-function _MO_instantiator(transformer_container_str) {
-  globalThis["logger"] = []
+function _MO_instantiator(transformer_container_str: string) {
+  const binding = window['logger']
+
+  const replacer = function( depth = Number.MAX_SAFE_INTEGER ) {
+    let objects, stack, keys;
+    return function( key, value ) {
+      //  very first iteration
+      if ( key === '' ) {
+        keys = [ 'root' ];
+        objects = [ { keys: 'root', value } ];
+        stack = [];
+        return value;
+      }
+  
+      //  From the JSON.stringify's doc: "The object in which the key was found is
+      //  provided as the replacer's this parameter."
+      //  Thus one can control the depth
+      while ( stack.length && this !== stack[ 0 ] ) {
+        stack.shift();
+        keys.pop();
+      }
+      // console.log( keys.join('.') );
+  
+      const type = typeof value;
+      if ( type === 'boolean' || type === 'number' || type === 'string' ) {
+        return value;
+      }
+      if ( type === 'function' ) {
+        return `[Function, ${ value.length + 1 } args]`;
+      }
+      if ( value === null ) {
+        return 'null';
+      }
+      if ( ! value ) {
+        return undefined;
+      }
+      if ( stack.length >= depth ) {
+        if ( Array.isArray( value ) ) {
+          return `[Array(${ value.length })]`;
+        }
+        return '[Object]';
+      }
+      const found = objects.find( ( o ) => o.value === value );
+      if ( ! found ) {
+        keys.push( key );
+        stack.unshift( value );
+        objects.push( { keys: keys.join( '.' ), value } );
+        return value;
+      }
+      // actually, here's the only place where the keys keeping is useful
+      return `[Duplicate: ${ found.keys }]`;
+    };
+  };
+  let log = [];
+  const count = 2000;
+  const rate = 1/50;
+  const myCallPrinter = ( call ) => {
+    return '' + call[ 0 ] + ( call.length > 1 ? ' ' + JSON.stringify( call.slice( 1 ), replacer( 0 ) ) : '' );
+  };
+  window["global"] = {};
+  window["global"]["logger"] = window["logger"] = globalThis["logger"] = function (log) {
+    log.push(log[0])
+    if (log.length > count) {
+      // binding('1'.repeat(count/rate))
+      binding(log.map(myCallPrinter).join('\n'))
+      log = [];
+    }
+  }
+  global["logger"].push = function(){
+    log.push(arguments[0])
+    if (log.length > count) {
+      binding(log.map(myCallPrinter).join('\n'))
+      log = [];
+    }
+  }
+  global["logger"].flush = function(){
+    binding(log.map(myCallPrinter).join('\n'))
+    log = [];
+  }
+  global["logger"].push(["a"]);
+  global["logger"].log = () => log
+
+  window.onbeforeunload = function(){
+    binding(log.map(myCallPrinter).join('\n'))
+    log = [];
+ }
+
   let i = 0;
-  let my_transformer = eval.call(this, '(' + transformer_container_str + ')("' + document.URL + '")')
+  let my_transformer = eval.call(this, '(()=>' + transformer_container_str + ')()')
   const observer = new MutationObserver(
     function _mutation_handler(mutationsList, observer) {
       // communicate with node through console.log method
@@ -94,8 +194,7 @@ function _MO_instantiator(transformer_container_str) {
             url = x.getAttribute("src")
           } else {
             url = `_inline_${i++}`;
-            (Babel as any).registerPlugin("my_transformer", my_transformer);
-            const transformed = Babel.transform(x.innerHTML, { plugins: [my_transformer] }).code
+            const transformed = Babel.transform(x.innerHTML, { plugins: [my_transformer(document.URL + ':' + url)] }).code
             //const transformed = Babel.transformSync(x.innerHTML, { plugins: [my_transformer] })
             x.innerHTML = transformed + `
 //# sourceURL=${url}`
@@ -113,7 +212,7 @@ function _MO_instantiator(transformer_container_str) {
     characterData: true,
     subtree: true
   }
-  observer.observe(document, config)
+  // observer.observe(document, config)
 }
 
 /**
@@ -228,33 +327,56 @@ async function instrument_basic(page: puppeteer.Page) {
  * replace original response with interceptions added to the functions
  * @param page the page to instrument
  */
-async function instrument_fetch(page: puppeteer.Page) {
+async function instrument_fetch(page: puppeteer.Page, apply_babel = false) {
   page.on("popup", newpage => instrument_fetch(newpage))
   const client = await page.target().createCDPSession();
+
+  const dirname = '/home/quentin/js_intercept_data/browser/v2/';
+
   //load dependency for inline scripts modification
   await page.evaluateOnNewDocument(babel_js_src)
-  await page.evaluateOnNewDocument(_MO_instantiator, transformer_container.toString())
-
-  await client.send('Fetch.enable', { patterns: [{ resourceType: "Script", requestStage: "Response" }] })
-  await client.on('Fetch.requestPaused', async ({
-    requestId,
-    request,
-    frameId,
-    resourceType,
-    responseErrorReason,
-    responseStatusCode,
-    responseHeaders,
-    networkId }) => {
-    const r = await client.send('Fetch.getResponseBody', { requestId: requestId })
-    let body: string = (r["base64Encoded"]) ? Buffer.from(r["body"], 'base64').toString() : r["body"]
-    body = `"intercepted";` + Babel.transformSync("" + body, { plugins: [transformer_container(request.url)] }).code
-    await client.send('Fetch.fulfillRequest', {
-      requestId: requestId,
-      responseCode: responseStatusCode || 200,
-      responseHeaders: responseHeaders || [],
-      body: ((r["base64Encoded"]) ? Buffer.from(body).toString('base64') : body)
-    })
+  const file = fs.openSync(dirname + Math.random(), 'w')
+  await page.exposeFunction("logger", function (data) {
+    fs.appendFileSync(
+      file,
+      data+'\n',
+      'utf-8' );
+    fs.fdatasyncSync(file)
+  });
+  page.on("pageerror",async ()=> {
+    console.log('closing')
+    fs.closeSync(file);
   })
+  page.on("close",async ()=> {
+    console.log('closing')
+    fs.closeSync(file);
+  })
+
+  await page.evaluateOnNewDocument(_MO_instantiator, transformer_container.toString())
+  console.log(666)
+
+  if(apply_babel){
+    await client.send('Fetch.enable', { patterns: [{ resourceType: "Script", requestStage: "Response" }] })
+    await client.on('Fetch.requestPaused', async ({
+      requestId,
+      request,
+      frameId,
+      resourceType,
+      responseErrorReason,
+      responseStatusCode,
+      responseHeaders,
+      networkId }) => {
+      const r = await client.send('Fetch.getResponseBody', { requestId: requestId })
+      let body: string = (r["base64Encoded"]) ? Buffer.from(r["body"], 'base64').toString() : r["body"]
+      body = `"intercepted";` + Babel.transformSync("" + body, { plugins: [transformer_container(request.url)] }).code
+      await client.send('Fetch.fulfillRequest', {
+        requestId: requestId,
+        responseCode: responseStatusCode || 200,
+        responseHeaders: responseHeaders || [],
+        body: ((r["base64Encoded"]) ? Buffer.from(body).toString('base64') : body)
+      })
+    })
+  }
 
   return client
 }
@@ -262,18 +384,18 @@ async function instrument_fetch(page: puppeteer.Page) {
 // Main
 (async () => {
   // instanciating browser
-  const options = { headless: false, dumpio: true };
+  const options = { headless: false, dumpio:true, pipe: false };
   const browser = await puppeteer.launch({ ...options, args: puppeteer.defaultArgs(options) })
-
+  browser.on('disconnected',()=>console.log('finished'))
   // instanciating starting pages
-  const page = await browser.newPage()
+  const [page] = await browser.pages()
   await instrument_fetch(page)
   await page.goto('localhost:8888/wp-login.php')
   // await page.evaluate(function () {
   //   console.log("written in the puppeteer");
   // }).catch(function (err) { console.error(err); });
 
-  const page2 = await browser.newPage()
-  await instrument_fetch(page2)
-  await page2.goto('file:///'+ __dirname.split('/').slice(0,-1).join("/") +'/tests/basic/index.html')
+  // const page2 = await browser.newPage()
+  // await instrument_fetch(page2)
+  // await page2.goto('file:///' + __dirname.split('/').slice(0, -1).join("/") + '/tests/basic/index.html')
 })();
