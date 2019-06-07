@@ -392,7 +392,7 @@ async function instrument_fetch(page: puppeteer.Page, apply_babel = false) {
   // instanciating starting pages
   const [page] = await browser.pages()
   await instrument_fetch(page)
-  await page.goto('localhost:8888/wp-login.php')
+  await page.goto('about:blank')
   // await page.evaluate(function () {
   //   console.log("written in the puppeteer");
   // }).catch(function (err) { console.error(err); });
