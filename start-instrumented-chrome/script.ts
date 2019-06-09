@@ -170,7 +170,6 @@ function _MO_instantiator(transformer_container_str: string) {
     binding(log.map(myCallPrinter).join('\n'))
     log = [];
   }
-  global["logger"].push(["a"]);
   global["logger"].log = () => log
 
   window.onbeforeunload = function(){
@@ -332,7 +331,7 @@ async function instrument_fetch(page: puppeteer.Page, apply_babel = false) {
   const client = await page.target().createCDPSession();
 
   const dirname = '/tmp/behaviorlogs/';//require('path').join(require('os').homedir(),'/js_intercept_data/browser/v2/');
-  //fs.mkdirSync(dirname);
+  if (!fs.existsSync(dirname)) fs.mkdirSync(dirname);
   //load dependency for inline scripts modification
   await page.evaluateOnNewDocument(babel_js_src)
   const file = fs.openSync(dirname + Math.random(), 'w')
@@ -344,16 +343,23 @@ async function instrument_fetch(page: puppeteer.Page, apply_babel = false) {
     fs.fdatasyncSync(file)
   });
   page.on("pageerror",async ()=> {
-    console.log('closing')
-    fs.closeSync(file);
+    // console.log('closing on error')
+    // try{
+    //   fs.closeSync(file);
+    // } catch(e){
+    //   console.log(e) 
+    // }
   })
   page.on("close",async ()=> {
     console.log('closing')
-    fs.closeSync(file);
+    try{
+      fs.closeSync(file);
+    } catch(e){
+      console.log(e) 
+    }
   })
 
   await page.evaluateOnNewDocument(_MO_instantiator, transformer_container.toString())
-  console.log(666)
 
   if(apply_babel){
     await client.send('Fetch.enable', { patterns: [{ resourceType: "Script", requestStage: "Response" }] })
