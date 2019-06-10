@@ -2,216 +2,131 @@ import * as puppeteer from "puppeteer";
 import * as fs from "fs";
 import Crdp from 'chrome-remote-debug-protocol'
 import { types as btypes, PluginObj } from "@babel/core";
-import * as Babel from "@babel/core";
+import { transformSync } from "@babel/core";
+import { instrumenter_container } from "./instrumentation";
 
-type t_Babel = typeof Babel
-
-function transformer_container(URL) {
-  return function (Babel: t_Babel): PluginObj {
-    let i = 0
-    const btypes = Babel.types;
-    type t_params = (btypes.ArrayPattern | btypes.AssignmentPattern | btypes.Identifier | btypes.RestElement | btypes.ObjectPattern | btypes.TSParameterProperty)
-
-
-    function param2exp(param: t_params) {
-      function toObjectE(
-        x: (btypes.ObjectProperty | btypes.RestElement)
-      ): (btypes.ObjectProperty | btypes.SpreadElement) {
-        if (x.type === 'ObjectProperty') return x
-        else if (x.type === 'RestElement') return undefined
-      }
-      if (param.type === "Identifier") return param
-      else if (param.type === "ObjectPattern")
-        return btypes.stringLiteral('TODO: ObjectPattern')
-      // return btypes.objectExpression((param as btypes.ObjectPattern).properties.map(toObjectE))
-      else if (param.type === "ArrayPattern")
-        return btypes.stringLiteral('TODO: ArrayPattern')
-      // return btypes.stringLiteral(param.type)
-      return btypes.stringLiteral("TODO: " + param.type)
-    }
-
-
-    function make_logger_expr(
-      curr_file: string,
-      path: string,
-      fn_val: btypes.Expression,
-      ...params: (btypes.SpreadElement | btypes.Expression)[]) {
-      if (curr_file === 'unknown') curr_file = undefined
-      return btypes.expressionStatement(
-        btypes.callExpression(
-          btypes.identifier('globalThis.logger'),
-          [btypes.arrayExpression(
-            [
-              btypes.stringLiteral(curr_file || URL),
-              btypes.stringLiteral(path),
-              fn_val,
-              ...params])]))
-    }
-
-
-    return {
-      name: "log-functions-usage",
-      visitor: {
-        FunctionDeclaration(path) {
-          path.node.body.body.unshift(
-            make_logger_expr((this as any).file.opts.filename,
-              path.getPathLocation(),
-              btypes.memberExpression(path.node.id, btypes.identifier("name")),
-              btypes.spreadElement(
-                btypes.identifier('arguments'))))
-        },
-        FunctionExpression(path) {
-          let name = (path.node.loc) ?
-            `anonymous_${i++}:` + path.node.loc.start.line + ':' + path.node.loc.start.column :
-            `:anonymous_${i++}`;
-          path.node.body.body.unshift(
-            make_logger_expr(
-              (this as any).file.opts.filename,
-              path.getPathLocation(),
-              btypes.stringLiteral(name),
-              btypes.spreadElement(btypes.identifier('arguments'))))
-        },
-        ArrowFunctionExpression(path) {
-          let v = make_logger_expr(
-            (this as any).file.opts.filename,
-            path.getPathLocation(),
-            btypes.stringLiteral(`anonymous_${i++}:${path.node.loc.start.line}:${path.node.loc.start.column}`),
-            ...path.node.params.map(param2exp));
-          if (path.node.body.type === 'BlockStatement') {
-            path.node.body.body.unshift(v)
-          } else {
-            path.node.body =
-              btypes.blockStatement([v, btypes.returnStatement(path.node.body)])
-          }
-        }
-      }
-    };
-  }
-}
 
 const babel_js_src = fs.readFileSync("babel.js", 'utf8')
 
-function _MO_instantiator(transformer_container_str: string) {
+function _MO_instantiator(instrumenter_container_str: string) {
   const binding = window['logger']
+  window["global"] = {};
 
-  const replacer = function( depth = Number.MAX_SAFE_INTEGER ) {
+  const replacer = function (depth = Number.MAX_SAFE_INTEGER) {
     let objects, stack, keys;
-    return function( key, value ) {
+    return function (key, value) {
       //  very first iteration
-      if ( key === '' ) {
-        keys = [ 'root' ];
-        objects = [ { keys: 'root', value } ];
+      if (key === '') {
+        keys = ['root'];
+        objects = [{ keys: 'root', value }];
         stack = [];
         return value;
       }
-  
+
       //  From the JSON.stringify's doc: "The object in which the key was found is
       //  provided as the replacer's this parameter."
       //  Thus one can control the depth
-      while ( stack.length && this !== stack[ 0 ] ) {
+      while (stack.length && this !== stack[0]) {
         stack.shift();
         keys.pop();
       }
       // console.log( keys.join('.') );
-  
+
       const type = typeof value;
-      if ( type === 'boolean' || type === 'number' || type === 'string' ) {
+      if (type === 'boolean' || type === 'number' || type === 'string') {
         return value;
       }
-      if ( type === 'function' ) {
-        return `[Function, ${ value.length + 1 } args]`;
+      if (type === 'function') {
+        return `[Function, ${value.length + 1} args]`;
       }
-      if ( value === null ) {
+      if (value === null) {
         return 'null';
       }
-      if ( ! value ) {
+      if (!value) {
         return undefined;
       }
-      if ( stack.length >= depth ) {
-        if ( Array.isArray( value ) ) {
-          return `[Array(${ value.length })]`;
+      if (stack.length >= depth) {
+        if (Array.isArray(value)) {
+          return `[Array(${value.length})]`;
         }
         return '[Object]';
       }
-      const found = objects.find( ( o ) => o.value === value );
-      if ( ! found ) {
-        keys.push( key );
-        stack.unshift( value );
-        objects.push( { keys: keys.join( '.' ), value } );
+      const found = objects.find((o) => o.value === value);
+      if (!found) {
+        keys.push(key);
+        stack.unshift(value);
+        objects.push({ keys: keys.join('.'), value });
         return value;
       }
       // actually, here's the only place where the keys keeping is useful
-      return `[Duplicate: ${ found.keys }]`;
+      return `[Duplicate: ${found.keys}]`;
     };
   };
+
   let log = [];
   const count = 2000;
-  const rate = 1/50;
-  const myCallPrinter = ( call ) => {
-    return '' + call[ 0 ] + ( call.length > 1 ? ' ' + JSON.stringify( call.slice( 1 ), replacer( 0 ) ) : '' );
+
+  const myCallPrinter = (call) => {
+    return '' + call[0] + (call.length > 1 ? ' ' + JSON.stringify(call.slice(1), replacer(0)) : '');
   };
-  window["global"] = {};
-  window["global"]["logger"] = window["logger"] = globalThis["logger"] = function (log) {
-    log.push(log[0])
-    if (log.length > count) {
-      // binding('1'.repeat(count/rate))
+  
+  function flush() {
+    if (log.length > 0) {
       binding(log.map(myCallPrinter).join('\n'))
       log = [];
     }
   }
-  global["logger"].push = function(){
-    log.push(arguments[0])
+
+  function push(_log) {
+    log.push(_log)
     if (log.length > count) {
-      binding(log.map(myCallPrinter).join('\n'))
-      log = [];
+      flush();
     }
   }
-  global["logger"].flush = function(){
-    binding(log.map(myCallPrinter).join('\n'))
-    log = [];
-  }
-  global["logger"].log = () => log
 
-  window.onbeforeunload = function(){
-    binding(log.map(myCallPrinter).join('\n'))
-    log = [];
- }
+  window["global"]["logger"] = window["logger"] = globalThis["logger"] = push
+  global["logger"].push = push;
+  global["logger"].log = () => log;
+  window.onbeforeunload = global["logger"].flush = flush;
 
-  let i = 0;
-  let my_transformer = eval.call(this, '(()=>' + transformer_container_str + ')()')
-  const observer = new MutationObserver(
-    function _mutation_handler(mutationsList, observer) {
-      // communicate with node through console.log method
-      // console.log('__mutation')
-      let script_met = []
-      mutationsList
-        .map(x => [...x.addedNodes].filter(x => x.nodeName == 'SCRIPT'))
-        .reduce((x, acc) => [...x, ...acc], [])
-        .forEach((x: HTMLElement) => {
-          let url: string
-          if (x.hasAttribute("src") || x.getAttribute("src") === "") {
-            url = x.getAttribute("src")
-          } else {
-            url = `_inline_${i++}`;
-            const transformed = Babel.transform(x.innerHTML, { plugins: [my_transformer(document.URL + ':' + url)] }).code
-            //const transformed = Babel.transformSync(x.innerHTML, { plugins: [my_transformer] })
-            x.innerHTML = transformed + `
-//# sourceURL=${url}`
-          }
-          script_met.push(url)
-          //x.removeAttribute("src")//.setAttribute("src","");
-        })
-      // if (script_met.length > 0) {
-      //   debugger;
-      // }
-    })
-  const config = {
-    attributes: true,
-    childList: true,
-    characterData: true,
-    subtree: true
+  const dynamic_instrumentation = false;
+  if (dynamic_instrumentation) {
+    let i = 0;
+    let my_transformer = eval.call(this, '(()=>' + instrumenter_container_str + ')()')
+    const observer = new MutationObserver(
+      function _mutation_handler(mutationsList, observer) {
+        // communicate with node through console.log method
+        // console.log('__mutation')
+        let script_met = []
+        mutationsList
+          .map(x => [...x.addedNodes].filter(x => x.nodeName == 'SCRIPT'))
+          .reduce((x, acc) => [...x, ...acc], [])
+          .forEach((x: HTMLElement) => {
+            let url: string
+            if (x.hasAttribute("src") || x.getAttribute("src") === "") {
+              url = x.getAttribute("src")
+            } else {
+              url = `_inline_${i++}`;
+              const transformed = transformSync(x.innerHTML, { plugins: [my_transformer(document.URL + ':' + url)] }).code
+              //const transformed = Babel.transformSync(x.innerHTML, { plugins: [my_transformer] })
+              x.innerHTML = transformed + `
+  //# sourceURL=${url}`
+            }
+            script_met.push(url)
+            //x.removeAttribute("src")//.setAttribute("src","");
+          })
+        // if (script_met.length > 0) {
+        //   debugger;
+        // }
+      })
+    const config = {
+      attributes: true,
+      childList: true,
+      characterData: true,
+      subtree: true
+    }
+    observer.observe(document, config)
   }
-  // observer.observe(document, config)
 }
 
 /**
@@ -234,7 +149,7 @@ async function instrument_basic(page: puppeteer.Page) {
 
   //load dependency for inline scripts modification
   await page.evaluateOnNewDocument(babel_js_src)
-  await page.evaluateOnNewDocument(_MO_instantiator, transformer_container.toString())
+  await page.evaluateOnNewDocument(_MO_instantiator, instrumenter_container.toString())
 
   await client.send(
     'Debugger.setBreakpointByUrl',
@@ -249,7 +164,7 @@ async function instrument_basic(page: puppeteer.Page) {
       await client.send('Debugger.resume')
     } else if (msg.hitBreakpoints.length > 0 && msg.hitBreakpoints.some((x: string) => x === "2:0:0:.*")) {
       let _source = await client.send('Debugger.getScriptSource', { scriptId: `${msg.callFrames[0].location.scriptId}` })
-      let source = `"intercepted";` + await Babel.transformSync("" + _source["scriptSource"], { plugins: [transformer_container(msg.callFrames[0].url)] }).code
+      let source = `"intercepted";` + await transformSync("" + _source["scriptSource"], { plugins: [instrumenter_container(msg.callFrames[0].url)] }).code
       await client.send('Debugger.setScriptSource', { scriptId: `${msg.callFrames[0].location.scriptId}`, scriptSource: source })
       // TODO refresh devTool window to refresh visible version of scripts
       // await client.send('Runtime.runScript',{ scriptId: `${msg.callFrames[0].location.scriptId}`}).catch(function (err) { console.error(err); });
@@ -338,11 +253,11 @@ async function instrument_fetch(page: puppeteer.Page, apply_babel = false) {
   await page.exposeFunction("logger", function (data) {
     fs.appendFileSync(
       file,
-      data+'\n',
-      'utf-8' );
+      data + '\n',
+      'utf-8');
     fs.fdatasyncSync(file)
   });
-  page.on("pageerror",async ()=> {
+  page.on("pageerror", async () => {
     // console.log('closing on error')
     // try{
     //   fs.closeSync(file);
@@ -350,18 +265,18 @@ async function instrument_fetch(page: puppeteer.Page, apply_babel = false) {
     //   console.log(e) 
     // }
   })
-  page.on("close",async ()=> {
+  page.on("close", async () => {
     console.log('closing')
-    try{
+    try {
       fs.closeSync(file);
-    } catch(e){
-      console.log(e) 
+    } catch (e) {
+      console.log(e)
     }
   })
 
-  await page.evaluateOnNewDocument(_MO_instantiator, transformer_container.toString())
+  await page.evaluateOnNewDocument(_MO_instantiator, instrumenter_container.toString())
 
-  if(apply_babel){
+  if (apply_babel) {
     await client.send('Fetch.enable', { patterns: [{ resourceType: "Script", requestStage: "Response" }] })
     await client.on('Fetch.requestPaused', async ({
       requestId,
@@ -374,7 +289,7 @@ async function instrument_fetch(page: puppeteer.Page, apply_babel = false) {
       networkId }) => {
       const r = await client.send('Fetch.getResponseBody', { requestId: requestId })
       let body: string = (r["base64Encoded"]) ? Buffer.from(r["body"], 'base64').toString() : r["body"]
-      body = `"intercepted";` + Babel.transformSync("" + body, { plugins: [transformer_container(request.url)] }).code
+      body = `"intercepted";` + transformSync("" + body, { plugins: [instrumenter_container(request.url)] }).code
       await client.send('Fetch.fulfillRequest', {
         requestId: requestId,
         responseCode: responseStatusCode || 200,
@@ -390,11 +305,11 @@ async function instrument_fetch(page: puppeteer.Page, apply_babel = false) {
 // Main
 (async () => {
   // instanciating browser
-  const options = { headless: false, dumpio:true, pipe: false };
+  const options = { headless: false, dumpio: true, pipe: false };
   const launch_params = process.argv[2] === '--no-sandbox' ? [...puppeteer.defaultArgs(options), '--no-sandbox', '--disable-setuid-sandbox'] : puppeteer.defaultArgs(options);
-  console.log(process.argv,launch_params);
-  const browser = await puppeteer.launch({ ...options, args: launch_params})
-  browser.on('disconnected',()=>console.log('finished'))
+  console.log(process.argv, launch_params);
+  const browser = await puppeteer.launch({ ...options, args: launch_params })
+  browser.on('disconnected', () => console.log('finished'))
   // instanciating starting pages
   const [page] = await browser.pages()
   await instrument_fetch(page)
