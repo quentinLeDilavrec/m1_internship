@@ -9,10 +9,157 @@
 #+LATEX_HEADER: \usepackage{mdframed}
 
 * Introduction
-* Context
+Testing a software system is a fundamental process in software development 
+and considerable amount of the total development cost is reserved for software testing. 
+Extensive research has been done to improve tests on static programming languages like Java.
+But dynamic languages like Javascript pose new challenges due to an increased number of degre of liberty.
+In this conditions, tools like static analizers are also less effective,
+making tests even more important.
+To close the gap induced by new degres of liberty, 
+we harvest and analise runtime traces.
+The results obtained can help humans at understanding the behavior of a piece of software,
+but can also be feed to more classical automated test generation tools.
+Making software based on dynamic languages/interpretors more reliable and competitive 
+in domain previously favoring static languges.
+* Context/Related Work
+Research in software engineering aim at improving our understanding of software,
+by applying state of the art knowledge coming from other domains of computer science,
+like big data, natural language, machine learning
+to the analysis of software
+but also formalizing practices coming from empirical experience in the industry.
+The main point of most tools in the field is to improve software quality,
+there are many approaches.
+Static analysis is particularly effective to make exhaustive verification
+but can't apply to all software and does not scale very well.
+Tests on the other hand can check the result computed by a piece of software, given some input,
+it can be applied to most software but lake exhaustivity.
+In this paper we will focus on tests but there is no limitation as to use data produced at runtime 
+to improve performances of exaustive aproaches.
+Due to the limitation of tests on exaustivity 
+one major point is to generate tests automatically to lessen human labor
+but also evaluating the usefullness of tests.
+There is many implications, mainly reducing the cost of creating test but also the cost executing tests,
+faster bugs finding also improve development speed.
+# Finally giving short loop feedback to devellopers improves happiness =)
 * Intercepting javascript calls in browser and nodejs
+** dynamic instrumentation
+There is 2 main possibilities to instrument javascript in browser at compile time.
+#+BEGIN_SRC ditaa
+
+
+    --------<script src="xxxxx.js"></script>----<script src="xxxx.com/xxxx.js"></script>------<script>xxxxxxxxxxx</script>------------------------------------------>
+             \                            /      \                                    /              \          /
+              \                         (*)       \                                 (*)               +-(6)(*)-+
+DOM parsing   (1)                       /         (4)                               /
+                \                      /            \                              /
+          -------v--------------------^--------------\----------------------------/----
+                  \                  /                \                          /
+HTTP PACKETS      (2)              (3)                (2)                      (3)
+                    \              /                    \                      /
+          -----------\------------/----------------------\--------------------/---------------------------
+                      \          /                        \                  /
+                                                           \----------(5)---/
+                                                              \    /
+#+END_SRC
+(1) interception at DOM parsing, get the script tag as parameter, request script source, then instrument text of tag and populate innerhtml of tag
+(2) interception of outgoing query, to redirect to other url or directly respond to query
+(3) interception of response packet, intrument text in packet body then forward
+(4) interception at DOM parsing, get the script tag, +get script source code, then instrument text of tag+, CORS domain policy forbid programmatic requests to remote domains, so need to modify url to go through intermediary server
+(5) use an intermediary server to instrument script, need to change the original url
+(6) interception at DOM parsing, get the script tag, then instrument inner text of tag
+(* ) js parsing and evaluation by browser
+*** Mutation Observer
+ Using a mutation observer, it allow us to modify scripts added on the page during DOM parsing
+ This mutation Observer can be directly included in the original page as the first script balise,
+ on dynamically added to pages with an browser extension
+But this approach change the behavior of script tags, from local script to inner script.
+It can't use cache! (at least not as efficiently)
+*** Intercepting http requests
+ Use the Fetch domain of Devtools API (through puppeteer),
+ to intercept and modify incoming responses to scripts requested.
+ Make use of the browser cache, js parsing to instrument code is done in the puppeteer (nodejs) process, relieving browser of some stress
+ Don't work on inline scripts at this point (maybe intercepting html request and parsing the DOM)
+More than just an extension, but Docker container available (in this case it needs X).
+** instrumentation at compile time
+Integrate to most compilation pipelines, it uses /babeljs/
+* Trace Processing
+Look at last entries about sql in journal.
+* Application to Wordpress
+Why Wordpress?
+** Experimental procedure
+*** Production
+Multiple people with their personal computer do things with an instance of /Wordpress/ shared over local network
+*** Tests
+Run on a intel I7, gtx960M, 8Go RAM laptop.
+** Results
+*** distribution of calls on dataset
+#+BEGIN_EXAMPLE
+production/test calls sorted by number of occurences of production.
+y axis show # of calls
+x axis show calls, only some interesting calls should be visible.
+#+END_EXAMPLE
+[[file:plots/distrib.png]]
+*** distribution of calls on dataset per gutenberg package
+#+BEGIN_EXAMPLE
+production/test calls sorted by number of occurences of production.
+y axis show # of calls, (log2 scale)
+x axis show calls, only some interesting calls should be visible.
+data faceted by package
+#+END_EXAMPLE
+[[file:plots/multidistrib3.png]]
+
+and with values truncated to 1000 calls, to make it bigger.
+[[file:plots/multidistrib.png]]
+*** Venn diag. with symbols of functions
+#+BEGIN_SRC ditaa
+
+  +------------------------------------------------------+
+  | instrumented                                         |
+  | symbols +------------+----------+--------------+     |
+  |         |            | prod     |              |     |
+  |         |            | & test   |              |     |
+  |         |  test      |          |    prod      |     |
+  |         |  & -prod   |          |    & -test   |     |
+  |         |            |          |              |     |
+  |         |            |          |              |     |
+  |         +------------+----------+--------------+     |
+  |                                                      |
+  +------------------------------------------------------+
+
+#+END_SRC
+*** Venn diag. with function's symbols and parameters
+#+BEGIN_SRC ditaa
+
+            +------------+----------+--------------+
+            |            | prod     |              |
+            |            | & test   |              |
+            |  test      |          |    prod      |
+            |  & -prod   |          |    & -test   |
+            |            |          |              |
+            |            |          |              |
+            +------------+----------+--------------+
+
+#+END_SRC
+* Integration into a standard development loop
+screenshots?
+implications of:
+- low latency responses
+- incremental responses from most important to less important
+- no grand8 reports (appearing and disappearing) :: only increase importance level, never decrease without user implication
+- possible improvements
 * Conclusion
-* Journal
+* References
+[[https://doi.org/10.1016/j.infsof.2019.05.008][On the Use of Usage Patterns from Telemetry Data for Test Case Prioritization]]
+[[https://people.cs.umass.edu/~brun/pubs/pubs/Wang17icst.pdf][Behavioral Execution Comparison: Are Tests Representative of Field Behavior?]]
+[[https://github.com/INRIA/intertrace]]
+https://people.inf.ethz.ch/suz/publications/natural.pdf https://github.com/labri-progress/naturalness-js
+[[https://arxiv.org/pdf/1906.01463.pdf]]
+[[http://ceur-ws.org/Vol-971/paper21.pdf]]
+[http://citeseerx.ist.psu.edu/viewdoc/download;jsessionid=877A01775995830BB127116FB11BAB49?doi=10.1.1.323.3411&rep=rep1&type=pdf]]
+[[https://link.springer.com/content/pdf/10.1007%2Fs10270-019-00737-w.pdf]]
+[[https://cs.uwaterloo.ca/~m2nagapp/courses/CS846/1171/papers/hindle_icse12.pdf][Lossless compaction of model execution traces]]
+[[https://livablesoftware.com/conflictjs-javascript-libraries-conflicts/]]
+* Journal                                                          :noexport:
 ** [2019-05-15 Wed]
 *** DONE use Iroh with Mutation Observer to wrap scripts
 ** [2019-05-16 Thu]
@@ -56,7 +203,7 @@
   //**************************Set up your functionLogger*****************//
   var functionLogger = {};
 
-  functionLogger.log = true;//Set this to false to disable logging 
+  functionLogger.log = true;//Set this to false to disable logging
 
   /**
    * Gets a function that when called will log information about itself if logging is turned on.
@@ -64,7 +211,7 @@
    * @param func The function to add logging to.
    * @param name The name of the function.
    *
-   * @return A function that will perform logging and then call the function. 
+   * @return A function that will perform logging and then call the function.
    */
   functionLogger.getLoggableFunction = function(func, name) {
       return function() {
@@ -87,7 +234,7 @@
   };
 
   /**
-   * After this is called, all direct children of the provided namespace object that are 
+   * After this is called, all direct children of the provided namespace object that are
    * functions will log their name as well as the values of the parameters passed in.
    *
    * @param namespaceObject The object whose child functions you'd like to add logging to.
@@ -95,12 +242,12 @@
   functionLogger.addLoggingToNamespace = function(namespaceObject){
       for(var name in namespaceObject){
           var potentialFunction = namespaceObject[name];
-        
+
           if(Object.prototype.toString.call(potentialFunction) === '[object Function]'){
               namespaceObject[name] = functionLogger.getLoggableFunction(potentialFunction, name);
           }
       }
-  };    
+  };
 
 
   //**************************Set up your namespace functions*****************//
@@ -118,15 +265,15 @@
 
 
 
-  //**************************Add logging to your namespace functions*****************//    
-  functionLogger.addLoggingToNamespace(namespaceObject);        
-    
-    
-       
-    
+  //**************************Add logging to your namespace functions*****************//
+  functionLogger.addLoggingToNamespace(namespaceObject);
 
-    
-  //**************************Test it out*****************// 
+
+
+
+
+
+  //**************************Test it out*****************//
   namespaceObject.test1("alli", "gator", 3, 4, 5);
   #+END_SRC
 ***** https://stackoverflow.com/questions/5226550/can-i-override-the-javascript-function-object-to-log-all-function-calls/12425499#12425499
@@ -141,21 +288,21 @@
   const handler = {
     apply: function(target, thisArg, argumentsList) {
       console.log(`Calculate sum: ${argumentsList}`);
-    
+
       // expected output: "Calculate sum: 1,2"
 
       accu.push({
         name: target.name,
         args: argumentsList
                 });
-    
+
       return target(argumentsList[0], argumentsList[1]) * 10;
     }
   };
 
   var proxy1 = new Proxy(sum, handler);
 
-  console.log(sum(1, 2)); 
+  console.log(sum(1, 2));
   // expected output: 3
   console.log(proxy1(1, 2));
   // expected output: 30
@@ -283,9 +430,10 @@
   detect it, then attach a MO to it.
 
 *** TODO Serialize arguments in a mindfull way
-  control deph and type 
+  control deph and type
 
-*** STARTED intercept WordPress tests
+*** DONE intercept WordPress tests
+    CLOSED: [2019-06-04 Tue 16:37]
   modifying imports?
 **** HALF use babel for plugins browserification
 *** TODO hash of inline scripts
@@ -315,21 +463,21 @@ but don't work without maps or between compilations.
 
 ** [2019-05-27 Mon]
 *** Number of calls with puppeteer getting and  writting on disk 1 per call
-fail because resetting  this.log and not log 
+fail because resetting  this.log and not log
 #+BEGIN_EXAMPLE
-cat * | wc                                                  
+cat * | wc
       0       1 139670000
-#+END_EXAMPLE 
+#+END_EXAMPLE
 more like that with 10 one per call (to see available bandwith)
 #+BEGIN_EXAMPLE
-cat * | wc                                                  
+cat * | wc
       0       1 65380000
 #+END_EXAMPLE
 
-*** STARTED read [[https://doi.org/10.1016/j.infsof.2019.05.008][On the Use of Usage Patterns from Telemetry Data for Test Case Prioritization]]
+*** HALF read [[https://doi.org/10.1016/j.infsof.2019.05.008][On the Use of Usage Patterns from Telemetry Data for Test Case Prioritization]]
 - Telemetry / interception of requests
 - Fingerpints
-*** STARTED look at [[https://github.com/INRIA/intertrace]]
+*** HALF look at [[https://github.com/INRIA/intertrace]]
 - tracing API, give methods to trace events
 - Django
 ** [2019-05-28 Tue]
@@ -349,14 +497,15 @@ Dynamic lookup in source using ESlint, it underline problems, and propose/apply 
 ***** Calls made during tests
 Each test is run in an isolated environment,
 before each test the global variable storing logs is instantiated,
-after each test logs are written on disk. 
+after each test logs are written on disk.
 ***** Calls made during production
 The browser is launched using puppeteer
 each launched page instantiate the global variable storing logs.
 Here logs are flushed every n intercepted calls to lower the header part.
 
 ** [2019-06-01 Sat]
-*** TODO read [[https://people.cs.umass.edu/~brun/pubs/pubs/Wang17icst.pdf][Behavioral Execution Comparison: Are Tests Representative of Field Behavior?]] again, to recenter the project and construction of the arguments that will be soon developed 
+*** DONE read [[https://people.cs.umass.edu/~brun/pubs/pubs/Wang17icst.pdf][Behavioral Execution Comparison: Are Tests Representative of Field Behavior?]] again, to recenter the project and construction of the arguments that will be soon developed
+    CLOSED: [2019-06-09 Sun 16:38]
 Confronting my experience of the last weeks I hope to see this paper in a new light.
 **** vocabulary
 - used in production -> *used in the field*
@@ -384,7 +533,7 @@ Present a model based on temporal invariant (dynamic analysis)(kTails-based inva
 But also compare to coverage based models (industry usage [1][22][27][28][30])
 and a mutation-based model (industry usage[33]).
 **** intro
-- There is not a broad understanding of the extent to which test cases may fall short in representing real-world executions, 
+- There is not a broad understanding of the extent to which test cases may fall short in representing real-world executions,
 - The ways in which tests and realworld executions differ :: help to create novel metrics
 - What can be done to bridge this gap in an effective and efficient way :: measure improvements of test suites
 
@@ -395,17 +544,19 @@ and a mutation-based model (industry usage[33]).
 - a set of temporal invariants over executed methods that hold over the executions.
 
 *** HALF look at mutation based models for tests
-*** TODO implement SQL requests doing the same things as grep and uniq -c
+*** STARTED read https://people.inf.ethz.ch/suz/publications/natural.pdf and look at https://github.com/labri-progress/naturalness-js
+*** DONE implement SQL requests doing the same things as grep and uniq -c
+    CLOSED: [2019-06-04 Tue 14:41]
 #+BEGIN_SRC sql
-SELECT *,COUNT(*) FROM CALLS
-WHERE root = ?
-GROUP BY path, params
-
+SELECT CONCAT(path,':',sl,'',sc,':',el,':',ec), params, COUNT(*), SIGN(session) FROM CALLS
+WHERE path = ? AND sl = ? AND sc = ? AND el = ? AND ec = ?
+GROUP BY path, sl, sc, el, ec, params, SIGN(session)
 #+END_SRC
-*** TODO implement SQL requests doing behavioral inferences
+*** DEFERRED implement SQL requests doing behavioral inferences
+    CLOSED: [2019-06-19 Wed 14:42] maybe extending from my postgres recursive function
 #+BEGIN_SRC sql
-SELECT * FROM 
-  calls, 
+SELECT * FROM
+  calls,
   (SELECT root, session, next_line FROM calls
   WHERE calls.path = currpath
   AND calls.sl = currsl
@@ -417,7 +568,8 @@ AND init.session = calls.session
 AND init.next_line = calls.line
 #+END_SRC
 *** HALF read https://people.cs.umass.edu/~brun/pubs/pubs/Beschastnikh15tse.pdf
-*** TODO look at invarimint hadoop 2017 http://isisell.com/freeupload/741894_5942935424157615043.pdf
+*** DONE look at invarimint hadoop 2017 http://isisell.com/freeupload/741894_5942935424157615043.pdf
+    CLOSED: [2019-06-09 Sun 16:39]
 *** TODO show https://app.logrocket.com/nvhohr/test/sessions
 ** [2019-06-03 Mon]
 *** HALF look at https://docs.timescale.com/v1.3/introduction
@@ -425,29 +577,922 @@ AND init.next_line = calls.line
 - didn't see INFILE insertions
 - really adapted to logs but only one order improvements?
 ** [2019-06-05 Wed]
+*** TODO read [[https://arxiv.org/pdf/1906.01463.pdf]]
+*** TODO look at [[https://github.com/github/semantic]]
+*** CANCELLED prototype idea about splitting logs by gutenberg modules
+    CLOSED: [2019-06-19 Wed 14:38] Done with the postgres function searching recursivly from some symbols
+Something like =extract logs l where dist(l,c)<d with c a call to a function from current package=.
+Then it can be used to color/represent logs,
+or otherwise
+
 *** DONE meeting with Benoit B. and Javier C.
-**** TODO plot #n-gram over value of n
+**** STARTED plot #n-gram over value of n
 Need data, hopefully make first batch next +friday+ monday.
+***** DONE count ngrams
+      CLOSED: [2019-06-10 Mon 16:51]
+****** 1-grams
+=sort | uniq -c=
+****** simulating n-grams calculation using 1-gram technic and transforming each line into it and x previous lines
+- keep x lines in a circular array
+- read lines with stream
+- output to 1-gram algo as a stream current and x prev lines
+****** results
+uniq ngrams count grow linearly from ~20k up to 70k for 10-grams
+#+BEGIN_SRC
+
+#+END_SRC
 ** [2019-06-07 Fri]
+*** STARTED read [[http://ceur-ws.org/Vol-971/paper21.pdf]]
 *** CANCELLED Produce logs
     CLOSED: [2019-06-07 Fri 16:10] Bug, no logs produced, investigating in following days.
-- with Benoit and Javier
-- on their computer, respectively Ubuntu and OSX
-- for Docker using GUI, with OSX it needs XQuartz, that's difficult to install
-- on first docker usage need to start the deamon
-- on first use of X11 combined with docker run ~xhost local:root~ allowing local clients to communicate with X11 server
-- need to automatically create temporary directory for logs if it doesn't exist
+- with Benoit and Javier on their computer, respectively Ubuntu and OSX.
+- for Docker using GUI, with OSX it needs XQuartz, that is difficult to install
+- on first docker usage need to start the deamon, =sudo systemctl start docker=
+- on first use of X11 combined with docker run =xhost local:root= allowing local clients to communicate with X11 server
+- [X] need to automatically create temporary directory for logs if it doesn't exist
 ** [2019-06-08 Sat]
-*** DONE make experimental setup ready 
+*** DONE make experimental setup ready
 Now working with public IP.
-Last Friday problems were coming from a static config of Gutenberg setup scripts.
+Last Friday problems were coming from a static config (localhost) of Gutenberg setup scripts.
+
+*** TODO reduce number of nodes intercepted
+- using some sort of plugin structure? (at least make it easier)
+**** Gutenberg
+- filter arrow function smaller than something and inside reduce
+- get comment to enable or disable instrumenting
+*** WAITING format hints better
+- print firsts most used cases that are not tested
+- if hint size less than something print firsts most used cases that are not tested enough
+- normalize results by something
+*** DONE make some logs myself
+    CLOSED: [2019-06-10 Mon 13:53]
+*** DONE vscode plugin is working well
+*** TODO improve functions identification using a dict to check for names collisions at compile time.
+functions instrumented later (runtime (in eval?)) can be named by other means
+*** DONE show line 57537 to Javier of file logs/2
+    CLOSED: [2019-06-10 Mon 09:31]
+
+** [2019-06-12 Wed]
+*** DONE switch to postgress for LTREE and custom functions
+    CLOSED: [2019-06-16 Sun 14:47]
+http://patshaughnessy.net/2017/12/13/saving-a-tree-in-postgres-using-ltree
+#+NAME: Creation table
+#+BEGIN_SRC sql
+CREATE EXTENSION ltree;
+CREATE TABLE calls (
+  origin char(10) NOT NULL,
+  path ltree NOT NULL,
+  sl integer NOT NULL,
+  sc integer NOT NULL,
+  el integer NOT NULL,
+  ec integer NOT NULL,
+  session integer NOT NULL,
+  line integer NOT NULL,
+  params json DEFAULT NULL,
+  PRIMARY KEY (origin,session,line)
+);
+create index ON calls using gist(path);
+create index ON calls(path,sl,sc,el,ec);
+#+END_SRC
+
+#+NAME: Testing calls table
+#+BEGIN_SRC sql
+CREATE OR REPLACE FUNCTION public.formatPath(s char)
+ RETURNS ltree AS $BODY$
+BEGIN
+    return text2ltree(REPLACE(REPLACE(REPLACE(REPLACE(s,'ç','çç'),'-','ç1'),'.','ç0'),'/','.'));
+END;
+$BODY$ LANGUAGE plpgsql IMMUTABLE;
+CREATE OR REPLACE FUNCTION public.formatPath(l ltree)
+ RETURNS char AS $BODY$
+BEGIN
+    return REPLACE(REPLACE(REPLACE(REPLACE(ltree2text(l),'.','/'),'ç0','.'),'ç1','-'),'çç','ç');
+END;
+$BODY$ LANGUAGE plpgsql IMMUTABLE;
+SELECT formatPath('packages/edit-post/src/store/test/selectors.js');
+DELETE FROM calls;
+INSERT INTO CALLS (origin, path, sl, sc, el, ec, session, line, params) VALUES
+('test1', formatPath('packages/edit-post/src/store/test/selectors.js'), 205, 40, 211, 3, -5375, 1, NULL),
+('test1', formatPath('packages/edit-post/src/store/selectors.js'), 111, 7, 113, 1, -5375, 2, '["[Object]", "post-status"]'),
+('test1', formatPath('packages/scripts/config/global-setup.js'), 70, 11, 76, 1, -5375, 3, NULL),
+('test1', 'packages.scripts.config.globalç1setupç0ts', 70, 11, 76, 1, -5377, 3, NULL),
+('test1', formatPath('packages/blocks/src/api/raw-handling/test/figure-content-reducer.js'), 35, 36, 40, 2, -5374, 1, NULL);
+SELECT formatPath(path) FROM calls;
+#+END_SRC
+
+#+NAME: Initial requests
+#+BEGIN_SRC sql
+CREATE OR REPLACE FUNCTION public.myreq(initPath text)
+ RETURNS TABLE(init text, p text, t bigint) AS $BODY$
+DECLARE
+    chunk int[];
+    n int;
+BEGIN
+    n:=1;
+    CREATE TEMP TABLE accTable (n int, hash text, session int, ori int, moves text) on commit drop;
+    INSERT INTO accTable (hash, n, session, ori, moves)
+    SELECT n, MD5(formatPath(path)),
+           calls.session, line,''
+    FROM CALLS
+    WHERE path @> formatPath(initPath);
+
+    CREATE TEMP TABLE groupTable (n int, hash text, pocc bigint, tocc bigint) on commit drop;
+    INSERT INTO groupTable (n, hash, pocc, tocc)
+    SELECT (accTable.n, accTable.hash,
+           COUNT(SIGN(session)>0),
+           COUNT(SIGN(session)<0)
+    FROM accTable
+    GROUP BY accTable.n, accTable.hash;
+
+    INSERT INTO groupTable (n, hash, p, t)
+    SELECT (n, hash,
+           CASE WHEN SIGN(session)>0 THEN 'prod' ELSE 'test' END,
+           COUNT(*)
+    FROM accTable
+    GROUP BY n, hash, SIGN(session);
+
+    n:=n+1
+    INSERT INTO accTable (hash, n, session, ori, moves)
+    SELECT n, MD5(formatPath(path)+hash),
+    accTable.session, accTable.ori, CONCAT(moves,'p')
+    FROM CALLS, accTable
+    WHERE accTable.session = calls.session
+    AND ori-1 = line
+
+    INSERT INTO accTable (n, hash, session, ori, moves)
+    SELECT n, MD5(hash+formatPath(path)),
+    accTable.session, accTable.ori, CONCAT(moves,'n')
+    FROM CALLS, accTable
+    WHERE accTable.session = calls.session
+    AND ori+1 = line
+
+    LOOP
+       n:=n+1
+       INSERT INTO accTable (hash, n, session, ori, moves)
+       SELECT n, hash+formatPath(path),
+       accTable.session, accTable.ori , CONCAT(moves,'n')
+       FROM CALLS, accTable
+       WHERE
+       (n%2 = 0 AND )
+       ;
 
 
+       WHEN ????
+    END
+
+    RETURN QUERY SELECT * FROM groupTable;
+END;
+$BODY$ LANGUAGE plpgsql;
+SELECT * FROM myreq('packages/edit-post/src/store/selectors.js');
+#+END_SRC
+#+NAME: v2
+#+BEGIN_SRC sql
+DROP FUNCTION public.myreq;
+CREATE OR REPLACE FUNCTION public.myreq(initPath text)
+ RETURNS TABLE(n int, hash text, pocc bigint, tocc bigint) AS $BODY$
+#variable_conflict use_variable
+DECLARE
+    chunk int[];
+    n int;
+BEGIN
+    n:=1;
+    CREATE TEMP TABLE accTable (n int NOT NULL, hash text, session int, ori int, moves text) on commit drop;
+    INSERT INTO accTable (n, hash, session, ori, moves)
+    SELECT n, MD5(formatPath(path)),
+           calls.session, line,''
+    FROM CALLS
+    WHERE path @> formatPath(initPath);
+
+    CREATE TEMP TABLE groupTable (n int, hash text, pocc bigint, tocc bigint) on commit drop;
+    INSERT INTO groupTable (n, hash, pocc, tocc)
+    SELECT a.n, a.hash,
+           SUM((SIGN(a.session)>0)::int),
+           SUM((SIGN(a.session)<0)::int)
+    FROM accTable a
+    GROUP BY a.n, a.hash;
+
+    n:= n + 1;
+    -- move to previous line, n=2
+    INSERT INTO accTable (n, hash, session, ori, moves)
+    SELECT n, MD5(CONCAT(formatPath(c.path),a.hash)),
+    a.session, a.ori, CONCAT(a.moves,'p')
+    FROM calls c, accTable a
+    WHERE a.session = c.session
+    AND a.ori-1 = c.line
+    AND initPath != formatPath(c.path);
+
+    -- move to next line, n=2
+    INSERT INTO accTable (n, hash, session, ori, moves)
+    SELECT n, MD5(CONCAT(a.hash,formatPath(c.path))),
+    a.session, a.ori, CONCAT(a.moves,'n')
+    FROM calls c, accTable a
+    WHERE a.session = c.session
+    AND a.ori+1 = c.line;
+
+    LOOP
+
+      INSERT INTO groupTable (n, hash, pocc, tocc)
+      SELECT a.n, a.hash,
+            SUM((SIGN(a.session)>0)::int),
+            SUM((SIGN(a.session)<0)::int)
+      FROM accTable a
+      WHERE n = a.n
+      GROUP BY a.n, a.hash;
+
+      EXIT WHEN n >= 3;
+
+
+      n:= n + 1;
+      -- move to previous line, n=2
+      INSERT INTO accTable (n, hash, session, ori, moves)
+      SELECT n, MD5(CONCAT(formatPath(c.path),a.hash)),
+      a.session, a.ori, CONCAT(a.moves,'p')
+      FROM calls c, accTable a
+      WHERE n-1 = a.n
+      AND a.session = c.session
+      AND a.ori-1 = c.line
+      AND (n%2=0 OR RIGHT(a.moves, 1)='p')
+      AND initPath != formatPath(c.path);
+
+      -- move to next line, n=2
+      INSERT INTO accTable (n, hash, session, ori, moves)
+      SELECT n, MD5(CONCAT(a.hash,formatPath(c.path))),
+      a.session, a.ori, CONCAT(a.moves,'n')
+      FROM calls c, accTable a
+      WHERE n-1 = a.n
+      AND a.session = c.session
+      AND a.ori+1 = c.line
+      AND (RIGHT(a.moves, 1)='n' OR n%2=1);
+
+    END LOOP;
+
+    RETURN QUERY SELECT g.n, a.session, a.ori-(CHAR_LENGTH(a.moves) - CHAR_LENGTH(REPLACE(a.moves, 'p', ''))), g.pocc, g.tocc
+    FROM   groupTable g
+    CROSS  JOIN LATERAL (
+      SELECT a.session, a.ori, a.moves
+      FROM   accTable a
+      WHERE  g.n = a.n AND g.hash = a.hash         -- lateral reference
+      LIMIT  1
+      ) a;
+
+END;
+$BODY$ LANGUAGE plpgsql;
+SELECT * FROM myreq('packages/hooks/src/createCurrentHook.js');
+#+END_SRC
+#+NAME:v3
+#+BEGIN_SRC sql
+CREATE OR REPLACE FUNCTION public.formatPath(s char)
+ RETURNS ltree AS $BODY$
+BEGIN
+    return text2ltree(REPLACE(REPLACE(REPLACE(REPLACE(s,'ç','çç'),'-','ç1'),'.','ç0'),'/','.'));
+END;
+$BODY$ LANGUAGE plpgsql IMMUTABLE;
+CREATE OR REPLACE FUNCTION public.formatPath(l ltree)
+ RETURNS char AS $BODY$
+BEGIN
+    return REPLACE(REPLACE(REPLACE(REPLACE(ltree2text(l),'.','/'),'ç0','.'),'ç1','-'),'çç','ç');
+END;
+$BODY$ LANGUAGE plpgsql IMMUTABLE;
+CREATE OR REPLACE FUNCTION public.(l ltree)
+ RETURNS char AS $BODY$
+BEGIN
+    return REPLACE(REPLACE(REPLACE(REPLACE(ltree2text(l),'.','/'),'ç0','.'),'ç1','-'),'çç','ç');
+END;
+$BODY$ LANGUAGE plpgsql IMMUTABLE;
+DROP FUNCTION public.myreq;
+CREATE OR REPLACE FUNCTION public.myreq(initPath text)
+ RETURNS TABLE(n int, session int, left int, pocc bigint, tocc bigint) AS $BODY$
+#variable_conflict use_variable
+DECLARE
+    chunk int[];
+    n int;
+BEGIN
+    n:=1;
+    CREATE TEMP TABLE accTable (n int NOT NULL, hash text, session int, ori int, moves text) on commit drop;
+    INSERT INTO accTable (n, hash, session, ori, moves)
+    SELECT n, MD5(formatPath(path)),
+           calls.session, line,''
+    FROM CALLS
+    WHERE path @> formatPath(initPath);
+
+    CREATE TEMP TABLE groupTable (n int, hash text, pocc bigint, tocc bigint) on commit drop;
+    INSERT INTO groupTable (n, hash, pocc, tocc)
+    SELECT a.n, a.hash,
+           SUM((SIGN(a.session)>0)::int),
+           SUM((SIGN(a.session)<0)::int)
+    FROM accTable a
+    GROUP BY a.n, a.hash;
+    
+    n:= n + 1;
+    -- move to previous line, n=2
+    INSERT INTO accTable (n, hash, session, ori, moves)
+    SELECT n, MD5(CONCAT(formatPath(c.path),a.hash)),
+    a.session, a.ori, CONCAT(a.moves,'p')
+    FROM calls c, accTable a
+    WHERE a.session = c.session
+    AND a.ori-1 = c.line
+    AND NOT (formatPath(initPath) @> c.path);
+    
+    -- move to next line, n=2
+    INSERT INTO accTable (n, hash, session, ori, moves)
+    SELECT n, MD5(CONCAT(a.hash,formatPath(c.path))),
+    a.session, a.ori, CONCAT(a.moves,'n')
+    FROM calls c, accTable a
+    WHERE n-1 = a.n
+    AND a.session = c.session
+    AND a.ori+1 = c.line;
+    
+    LOOP
+    
+      INSERT INTO groupTable (n, hash, pocc, tocc)
+      SELECT a.n, a.hash,
+            SUM((SIGN(a.session)>0)::int),
+            SUM((SIGN(a.session)<0)::int)
+      FROM accTable a
+      WHERE n = a.n
+      GROUP BY a.n, a.hash;
+
+      EXIT WHEN n >= 4;
+
+      n:= n + 1;
+      -- move to previous line, n=2
+      INSERT INTO accTable (n, hash, session, ori, moves)
+      SELECT n, MD5(CONCAT(formatPath(c.path),a.hash)),
+      a.session, a.ori, CONCAT(a.moves,'p')
+      FROM calls c, accTable a
+      WHERE n-1 = a.n
+      AND a.session = c.session
+      AND a.ori-1 = c.line
+      AND (n%2=0 OR RIGHT(a.moves, 1)='p')
+      AND NOT (formatPath(initPath) @> c.path);
+
+      -- move to next line, n=2
+      INSERT INTO accTable (n, hash, session, ori, moves)
+      SELECT n, MD5(CONCAT(a.hash,formatPath(c.path))),
+      a.session, a.ori, CONCAT(a.moves,'n')
+      FROM calls c, accTable a
+      WHERE n-1 = a.n
+      AND a.session = c.session
+      AND a.ori+1 = c.line
+      AND (n%2=1 OR RIGHT(a.moves, 1)='n');
+
+    END LOOP;
+
+     RETURN QUERY SELECT g.n, a.session, a.ori-(CHAR_LENGTH(a.moves) - CHAR_LENGTH(REPLACE(a.moves, 'p', ''))), g.pocc, g.tocc
+     FROM   groupTable g
+     CROSS  JOIN LATERAL (
+      SELECT a.session, a.ori, a.moves
+      FROM   accTable a
+      WHERE  g.n = a.n AND g.hash = a.hash         -- lateral reference
+      LIMIT  1
+      ) a;
+
+END;
+$BODY$ LANGUAGE plpgsql;
+SELECT * FROM myreq('packages/hooks/src/createCurrentHook.js');
+#+END_SRC
+#+NAME: v3 with fct position and fixed moves
+#+BEGIN_SRC sql
+CREATE OR REPLACE FUNCTION public.formatPath(s char)
+ RETURNS ltree AS $BODY$
+BEGIN
+    return text2ltree(REPLACE(REPLACE(REPLACE(REPLACE(s,'ç','çç'),'-','ç1'),'.','ç0'),'/','.'));
+END;
+$BODY$ LANGUAGE plpgsql IMMUTABLE;
+CREATE OR REPLACE FUNCTION public.formatPath(l ltree)
+ RETURNS char AS $BODY$
+BEGIN
+    return REPLACE(REPLACE(REPLACE(REPLACE(ltree2text(l),'.','/'),'ç0','.'),'ç1','-'),'çç','ç');
+END;
+$BODY$ LANGUAGE plpgsql IMMUTABLE;
+
+DROP FUNCTION public.myreq;
+CREATE OR REPLACE FUNCTION public.myreq(initPath text, sl int, sc int, el int, ec int,max_n int)
+ RETURNS TABLE(n int, hash text, session int, left int, pocc bigint, tocc bigint) AS $BODY$
+#variable_conflict use_variable
+DECLARE
+    chunk int[];
+    n int;
+    origin char(10);
+BEGIN
+    origin:='gutenberg';
+    n:=1;
+    CREATE TEMP TABLE accTable (n int NOT NULL, hash text, session int, "left" int, isLastPrev boolean, ori int, 
+                                PRIMARY KEY (n, session, "left", hash)) on commit drop;
+    CREATE index ON accTable(n, hash);
+    
+    INSERT INTO accTable (n, hash, session, "left", isLastPrev, ori)
+    SELECT n, MD5(CONCAT(formatPath(c.path),c.sl,c.sc,c.el,c.ec)),
+           c.session, c.line, false, 0
+    FROM CALLS c
+    WHERE origin = c.origin
+    AND path @> formatPath(initPath)
+    AND sl = c.sl
+    AND sc = c.sc
+    AND el = c.el
+    AND ec = c.ec;
+
+    CREATE TEMP TABLE groupTable (n int, hash text, pocc bigint, tocc bigint,
+                                  PRIMARY KEY (n, hash)) on commit drop;
+    INSERT INTO groupTable (n, hash, pocc, tocc)
+    SELECT a.n, a.hash,
+           SUM((SIGN(a.session)>0)::int),
+           SUM((SIGN(a.session)<0)::int)
+    FROM accTable a
+    GROUP BY a.n, a.hash;
+    
+    n:= n + 1;
+    -- move to previous line, n=2
+    INSERT INTO accTable (n, hash, session, "left", isLastPrev, ori)
+    SELECT n, MD5(CONCAT(formatPath(c.path),c.sl,c.sc,c.el,c.ec,a.hash)),
+    a.session, a."left"-1, true, a.ori+1
+    FROM accTable a, calls c
+    WHERE n-1 = a.n
+    AND a.session = c.session
+    AND a.left-1 = c.line
+    AND origin = c.origin
+    AND NOT (
+        formatPath(initPath) @> c.path
+        AND sl = c.sl
+        AND sc = c.sc
+        AND el = c.el
+        AND ec = c.ec);
+    
+    -- move to next line, n=2
+    INSERT INTO accTable (n, hash, session, "left", isLastPrev, ori)
+    SELECT n, MD5(CONCAT(a.hash,formatPath(c.path),c.sl,c.sc,c.el,c.ec)),
+    a.session, a.left, false, a.ori
+    FROM accTable a, calls c
+    WHERE n-1 = a.n
+    AND origin = c.origin
+    AND a.session = c.session
+    AND a.left+(n-1) = c.line;
+    
+    LOOP
+    
+      INSERT INTO groupTable (n, hash, pocc, tocc)
+      SELECT a.n, a.hash,
+            SUM((SIGN(a.session)>0)::int),
+            SUM((SIGN(a.session)<0)::int)
+      FROM accTable a
+      WHERE n = a.n
+      GROUP BY a.n, a.hash;
+
+      EXIT WHEN n >= max_n;
+
+      n:= n + 1;
+      ANALYZE accTable;
+      -- move to previous line, n=2
+      INSERT INTO accTable (n, hash, session, "left", isLastPrev, ori)
+      SELECT n, MD5(CONCAT(formatPath(c.path),c.sl,c.sc,c.el,c.ec,a.hash)),
+      a.session, a.left-1, true, a.ori+1
+      FROM accTable a, groupTable g, calls c
+      WHERE n-1 = a.n
+      AND n-1 = g.n
+      AND a.hash = g.hash
+      AND origin = c.origin
+      AND a.session = c.session
+      AND a.left-1 = c.line
+      AND (n%2=0 OR a.isLastPrev)
+      AND NOT (formatPath(initPath) @> c.path
+        AND sl = c.sl
+        AND sc = c.sc
+        AND el = c.el
+        AND ec = c.ec);
+
+      -- move to next line, n=2
+      INSERT INTO accTable (n, hash, session, "left", isLastPrev, ori)
+      SELECT n, MD5(CONCAT(a.hash,formatPath(c.path),c.sl,c.sc,c.el,c.ec)),
+      a.session, a.left, false, a.ori
+      FROM accTable a, groupTable g, calls c
+      WHERE n-1 = a.n
+      AND n-1 = g.n
+      AND a.hash = g.hash
+      AND origin = c.origin
+      AND a.session = c.session
+      AND a.left+(n-1) = c.line
+      AND (n%2=1 OR NOT a.isLastPrev);
+
+    END LOOP;
+
+     RETURN QUERY SELECT g.n, g.hash, a.session, a.left, g.pocc, g.tocc
+     FROM   groupTable g
+     CROSS  JOIN LATERAL (
+      SELECT a.session, a.left
+      FROM   accTable a
+      WHERE  g.n = a.n AND g.hash = a.hash         -- lateral reference
+      LIMIT  1
+      ) a;
+
+END;
+$BODY$ LANGUAGE plpgsql;
+SELECT c.*, g.*
+FROM myreq('packages/data/src/components/with-select/index.js',53,71,206,1,5) as g,
+     calls c
+WHERE 'gutenberg' = c.origin
+AND c.session = g.session
+AND line >= g.left
+AND line < g.left+g.n
+ORDER BY g.n, g.hash,g.session,c.line;
+#+END_SRC
+#+NAME: v3 using some heuristics
+#+BEGIN_SRC sql
+CREATE OR REPLACE FUNCTION public.formatPath(s char)
+ RETURNS ltree AS $BODY$
+BEGIN
+    return text2ltree(REPLACE(REPLACE(REPLACE(REPLACE(s,'ç','çç'),'-','ç1'),'.','ç0'),'/','.'));
+END;
+$BODY$ LANGUAGE plpgsql IMMUTABLE;
+CREATE OR REPLACE FUNCTION public.formatPath(l ltree)
+ RETURNS char AS $BODY$
+BEGIN
+    return REPLACE(REPLACE(REPLACE(REPLACE(ltree2text(l),'.','/'),'ç0','.'),'ç1','-'),'çç','ç');
+END;
+$BODY$ LANGUAGE plpgsql IMMUTABLE;
+
+DROP FUNCTION public.myreq;
+CREATE OR REPLACE FUNCTION public.myreq(initPath text, sl int, sc int, el int, ec int,max_n int)
+ RETURNS TABLE(n int, hash text, session int, left int, pocc bigint, tocc bigint) AS $BODY$
+#variable_conflict use_variable
+DECLARE
+    chunk int[];
+    n int;
+    origin char(10);
+BEGIN
+    origin:='gutenberg';
+    n:=1;
+    CREATE TEMP TABLE accTable (n int NOT NULL, hash text, session int, "left" int, isLastPrev boolean, ori int, 
+                                PRIMARY KEY (n, session, "left", hash)) on commit drop;
+    CREATE index ON accTable(n, hash);
+    
+    INSERT INTO accTable (n, hash, session, "left", isLastPrev, ori)
+    SELECT n, MD5(CONCAT(formatPath(c.path),c.sl,c.sc,c.el,c.ec)),
+           c.session, c.line, false, 0
+    FROM CALLS c
+    WHERE origin = c.origin
+    AND path @> formatPath(initPath)
+    AND sl = c.sl
+    AND sc = c.sc
+    AND el = c.el
+    AND ec = c.ec;
+
+    CREATE TEMP TABLE groupTable (n int, hash text, pocc bigint, tocc bigint,
+                                  PRIMARY KEY (n, hash)) on commit drop;
+    INSERT INTO groupTable (n, hash, pocc, tocc)
+    SELECT a.n, a.hash,
+           SUM((SIGN(a.session)>0)::int),
+           SUM((SIGN(a.session)<0)::int)
+    FROM accTable a
+    GROUP BY a.n, a.hash;
+    
+    n:= n + 1;
+    -- move to previous line, n=2
+    INSERT INTO accTable (n, hash, session, "left", isLastPrev, ori)
+    SELECT n, MD5(CONCAT(formatPath(c.path),c.sl,c.sc,c.el,c.ec,a.hash)),
+    a.session, a."left"-1, true, a.ori+1
+    FROM accTable a, (SELECT * FROM groupTable g ORDER BY g.pocc DESC, g.n DESC, g.tocc LIMIT 4*ceil(log(n,n))) g, calls c
+    WHERE n-1 = a.n
+    AND n-1 = g.n
+    AND a.hash = g.hash
+    AND a.session = c.session
+    AND a.left-1 = c.line
+    AND origin = c.origin
+    AND NOT (
+        formatPath(initPath) @> c.path
+        AND sl = c.sl
+        AND sc = c.sc
+        AND el = c.el
+        AND ec = c.ec);
+    
+    -- move to next line, n=2
+    INSERT INTO accTable (n, hash, session, "left", isLastPrev, ori)
+    SELECT n, MD5(CONCAT(a.hash,formatPath(c.path),c.sl,c.sc,c.el,c.ec)),
+    a.session, a.left, false, a.ori
+    FROM accTable a, (SELECT * FROM groupTable g ORDER BY g.pocc DESC, g.n DESC, g.tocc LIMIT 4*ceil(log(n,n))) g, calls c
+    WHERE n-1 = a.n
+    AND n-1 = g.n
+    AND a.hash = g.hash
+    AND origin = c.origin
+    AND a.session = c.session
+    AND a.left+(n-1) = c.line;
+    
+    LOOP
+    
+      INSERT INTO groupTable (n, hash, pocc, tocc)
+      SELECT a.n, a.hash,
+            SUM((SIGN(a.session)>0)::int),
+            SUM((SIGN(a.session)<0)::int)
+      FROM accTable a
+      WHERE n = a.n
+      GROUP BY a.n, a.hash;
+
+      EXIT WHEN n >= max_n;
+
+      n:= n + 1;
+      ANALYZE accTable;
+      -- move to previous line, n=2
+      INSERT INTO accTable (n, hash, session, "left", isLastPrev, ori)
+      SELECT n, MD5(CONCAT(formatPath(c.path),c.sl,c.sc,c.el,c.ec,a.hash)),
+      a.session, a.left-1, true, a.ori+1
+      FROM accTable a, (SELECT * FROM groupTable g ORDER BY g.pocc DESC, g.n DESC, g.tocc LIMIT 4*ceil(log(n,n))) g, calls c
+      WHERE n-1 = a.n
+      AND n-1 = g.n
+      AND a.hash = g.hash
+      AND origin = c.origin
+      AND a.session = c.session
+      AND a.left-1 = c.line
+      AND (n%2=0 OR a.isLastPrev)
+      AND NOT (formatPath(initPath) @> c.path
+        AND sl = c.sl
+        AND sc = c.sc
+        AND el = c.el
+        AND ec = c.ec);
+
+      -- move to next line, n=2
+      INSERT INTO accTable (n, hash, session, "left", isLastPrev, ori)
+      SELECT n, MD5(CONCAT(a.hash,formatPath(c.path),c.sl,c.sc,c.el,c.ec)),
+      a.session, a.left, false, a.ori
+      FROM accTable a, (SELECT * FROM groupTable g ORDER BY g.pocc DESC, g.n DESC, g.tocc LIMIT 4*ceil(log(n,n))) g, calls c
+      WHERE n-1 = a.n
+      AND n-1 = g.n
+      AND a.hash = g.hash
+      AND origin = c.origin
+      AND a.session = c.session
+      AND a.left+(n-1) = c.line
+      AND (n%2=1 OR NOT a.isLastPrev);
+
+    END LOOP;
+
+     RETURN QUERY SELECT g.n, g.hash, a.session, a.left, g.pocc, g.tocc
+     FROM   groupTable g
+     CROSS  JOIN LATERAL (
+      SELECT a.session, a.left
+      FROM   accTable a
+      WHERE  g.n = a.n AND g.hash = a.hash         -- lateral reference
+      LIMIT  1
+      ) a;
+
+END;
+$BODY$ LANGUAGE plpgsql;
+SELECT c.*, g.*
+FROM myreq('packages/data/src/components/with-select/index.js',53,71,206,1,70) as g,
+     calls c
+WHERE 'gutenberg' = c.origin
+AND c.session = g.session
+AND line >= g.left
+AND line < g.left+g.n
+ORDER BY g.n, g.hash,g.session,c.line;
+#+END_SRC
+** [2019-06-13 Thu]
+*** Plan
+**** instrumentation
+***** dynamic instrumentation
+There is 2 main possibilities to instrument javascript in browser at compile time.
+#+BEGIN_SRC ditaa
+
+
+    --------<script src="xxxxx.js"></script>----<script src="xxxx.com/xxxx.js"></script>------<script>xxxxxxxxxxx</script>------------------------------------------>
+             \                            /      \                                    /              \          /
+              \                         (*)       \                                  /                +-(6)(*)-+
+DOM parsing   (1)                       /         (4)                               /
+                \                      /            \                              /
+          -------v--------------------^--------------\----------------------------/----
+                  \                  /                \                          /
+HTTP PACKETS      (2)              (3)                 \                        /
+                    \              /                    \                      /
+          -----------\------------/----------------------\--------------------/---------------------------
+                      \          /                        \                  /
+                                                           \----------(5)---/
+                                                              \    /
+#+END_SRC
+****** Mutation Observer
+Using a mutation observer, it allow us to modify scripts added on the page during DOM parsing
+This mutation Observer can be directly included in the original page as the first script balise,
+on dynamically added to pages with an browser extension
+****** Intercepting http requests
+Use the Fetch domain of Devtools API (through puppeteer),
+to intercept and modify incoming responses to scripts requested.
+Make use of the browser cache, js parsing to instrument code is done in the puppeteer (nodejs) process, relieving browser of some stress
+Don't work on inline scripts at this point (maybe intercepting html request and parsing the DOM)
+***** instrumentation at compile time
+**** Venn diag. with symbols of functions
+#+BEGIN_SRC ditaa
+
+  +------------------------------------------------------+
+  | instrumented                                         |
+  | symbols +------------+----------+--------------+     |
+  |         |            | prod     |              |     |
+  |         |            | & test   |              |     |
+  |         |  test      |          |    prod      |     |
+  |         |  & -prod   |          |    & -test   |     |
+  |         |            |          |              |     |
+  |         |            |          |              |     |
+  |         +------------+----------+--------------+     |
+  |                                                      |
+  +------------------------------------------------------+
+
+#+END_SRC
+**** Venn diag. with function's symbols and parameters
+#+BEGIN_SRC ditaa
+
+            +------------+----------+--------------+
+            |            | prod     |              |
+            |            | & test   |              |
+            |  test      |          |    prod      |
+            |  & -prod   |          |    & -test   |
+            |            |          |              |
+            |            |          |              |
+            +------------+----------+--------------+
+
+#+END_SRC
+**** distribution of calls on dataset
+#+BEGIN_SRC
+production/test calls sorted by number of occurences of production.
+y axis show # of calls
+x axis show calls, only some interesting calls are visible.
+#+END_SRC
+[[file:plots/distrib.png]]
+**** DEFERRED distribution of calls with parameters on dataset :noexport:
+     CLOSED: [2019-06-20 Thu 16:50] to much points to plot
+#+BEGIN_SRC
+production/test calls sorted by number of occurences of production.
+y axis show # of calls
+x axis show calls+parameters, only some interesting calls and parameters are visible.
+#+END_SRC
+** [2019-06-14 Fri]
+*** STARTED read [[http://citeseerx.ist.psu.edu/viewdoc/download;jsessionid=877A01775995830BB127116FB11BAB49?doi=10.1.1.323.3411&rep=rep1&type=pdf]]
+*** Night idea
+recursively compute ngrams and compress previously compared ngrams (parts)
+#+BEGIN_SRC sql
+CREATE TEMPORARY TABLE aaa(
+  n int,
+  hash int,
+  session int,
+  prevl int,
+  nextl int
+  )
+#+END_SRC
+#+BEGIN_EXAMPLE
+1  2    3      4
+x ax_ _11c_ _b111__
+            __111b_
+      b11__ a222___
+            _222c__ -
+  _xc _a44_ _b333__ --
+            __333b_ -
+      __44c __a444_ -
+            ___444c
+x ax_ _11a_ _b555__
+            __555a_
+      b11__ _222a__
+            c222___
+  _xa _a55_ _b666__
+            __666a_
+      __55a ___777c
+            __a777_
+x bx_ _22c_ _______
+  _xc _b44_ _______
+x ax_ _11a_ _______
+  _xa _a55_ __222__
+x cx_ _33c_ __444__
+  _xc _c44_ __444__
+x cx_ _33c_ __444__
+  _xc _c44_ __444__
+x bx_ _22b_ __555__
+  _xb _b66_ __555__
+#+END_EXAMPLE
+** [2019-06-18 Tue]
+*** DONE recreate test traces with the new version of gutenberg (5.3)
+I implemented an environment that instantiate for each test file an array in the global scope then at the end write it on disk.
+*** TODO plot venn diag between prod traces and/or tests
+use distribution data?
+** [2019-06-19 Wed]
+*** DONE plot distribution on subsets of gutenberg
+     CLOSED: [2019-06-20 Thu 16:36]
+     use =npm run build && node out/makerequests.pg.js | python ../plots/main.py multi-dist line -o ../plots/multidistrib_root2.png= in behaviour-client
+*** DONE use https://github.com/Jacarte/bufferedDTW/blob/master/docs/ngram.md
+*** STARTED read [[https://cs.uwaterloo.ca/~m2nagapp/courses/CS846/1171/papers/hindle_icse12.pdf][Lossless compaction of model execution traces]]
+- xDSML -> models on xDSL
+- my traces are only a list of transitions compared to the heterogenous traces targeted by this paper
+*** DONE look at [[https://livablesoftware.com/conflictjs-javascript-libraries-conflicts/]]
+    CLOSED: [2019-06-20 Thu 11:03]
+Out of scope for the internship but the instrumentation tool could be modified to get those king of events (assignments on global scope things)
+- One way is to wrap global variables with Proxies
+- Could also monitor assignments and filter those accessible from global scope :: I mean do the assignment normally then check is the left hand side can be accessed from a specially made function (that live in the global scope).
+*** DONE put links in references
+    CLOSED: [2019-06-19 Wed 14:44]
+*** DEFERRED try to correct method on the remark of Benoit
+    CLOSED: [2019-06-19 Wed 16:04] not possible in my time frame
+Benoit Gave me a good remark on my algorithm, telling that it does not compress repetitive patterns.
+Like aaaaa should become a+ and abababab should become (ab)+ and more like that.
+But taking n=2 like in the first paper makes is only able to compress some patterns.
+For now I have some intuitions on the way of doing it.
+** [2019-06-20 Thu]
+*** TODO read [[http://scholar.google.com/scholar_url?url=https://repositories.lib.utexas.edu/bitstream/handle/2152/74915/DEMIR-THESIS-2018.pdf%3Fsequence%3D1&hl=en&sa=X&d=1403606065224085342&scisig=AAGBfm2v_GD75ccW2YmX0f0YtXa-BA2HfA&nossl=1&oi=scholaralrt&hist=dJQf4SYAAAAJ:5158978984045542397:AAGBfm2WcvuDR2BwMr2WgI3aikY9NcnSzw][Test-splitter: creating unit tests from system tests with different input combinations]]
+does not load...
+*** TODO plot distribution of interesting packages with more than 1-gram
+- multiple standard request?
+- async requests on temporary table that is at the same time improved.
+*** TODO sql count number of different session where symbol appear
+#+BEGIN_SRC sql
+array_length(ARRAY_AGG(DISTINCT (CASE WHEN session>0 THEN session ELSE NULL END)),1)
+#+END_SRC
+*** TODO end query using a timeout
+https://stackoverflow.com/questions/9063402/get-execution-time-of-postgresql-query
+#+BEGIN_SRC sql
+DECLARE
+StartTime timestamptz;
+  EndTime timestamptz;
+  Delta double precision;
+BEGIN
+  StartTime := clock_timestamp();
+  --PERFORM YOUR QUERY HERE;
+  EndTime := clock_timestamp();
+  Delta := 1000 * ( extract(epoch from EndTime) - extract(epoch from StartTime) );
+  RAISE NOTICE 'Duration in millisecs=%', Delta;
+#+END_SRC
+*** TODO put temporary tables of my pg function in global scope
+#+BEGIN_SRC sql
+-- contain all processed ngrams
+CREATE TEMP TABLE accTable (n int NOT NULL, hash text, session int, "left" int, isLastPrev boolean, ori int, 
+                            PRIMARY KEY (n, session, "left") on commit drop;
+CREATE index ON accTable(n, hash);
+-- if you want to know the number of basic symbols started to be processed, count number of distinct 1,1-gram in accTable
+-- if you want to find the row of a particular function search for (1, MD5(CONCAT(formatPath(c.path),c.sl,c.sc,c.el,c.ec))) in accTable
+-- you can search for missing ngrams looking for gaps in (n, session, left) when sorted
+-- if you want to process a new ngram in the database you need to make apply the algorithm starting from the left symbol
+-- for any given ngram you can fin how it was contructed looking at the symbol pointed by session,left+ori
+
+-- Procedure to instanciate a 1-gram in accTable
+-- Caution it shouldn't be made anymore (useless) because entirely computed from calls table and statics in groupTable
+INSERT INTO accTable (n, hash, session, "left", isLastPrev, ori)
+SELECT n, MD5(CONCAT(formatPath(c.path),c.sl,c.sc,c.el,c.ec)),
+        c.session, c.line, false, 0
+FROM CALLS c
+WHERE origin = c.origin
+AND path @> formatPath(initPath)
+AND sl = c.sl
+AND sc = c.sc
+AND el = c.el
+AND ec = c.ec;
+
+-- contain statistics on ngrams, such as occurences in tests and production
+CREATE TEMP TABLE groupTable (path ltree, sl int, sc int, el int, ec int, n int, hash text, pocc bigint, tocc bigint,
+                              PRIMARY KEY (path, sl, sc, el, ec, n, hash)) on commit drop;
+-- each indexed symbols statitics are accessible through the given symbol then the ngram size
+-- so the size of this table should be proportional to the number of indexed symbols and the number of ngram mined through accTable
+
+WITH a as (
+-- instanciate 1-gram
+SELECT n, MD5(CONCAT(formatPath(c.path),c.sl,c.sc,c.el,c.ec)),
+        c.session, c.line, false, 0
+FROM CALLS c
+WHERE origin = c.origin
+AND path @> formatPath(initPath)
+AND sl = c.sl
+AND sc = c.sc
+AND el = c.el
+AND ec = c.ec)
+-- Procedure to instanciate statics of 1-gram in groupTable
+INSERT INTO groupTable (n, hash, pocc, tocc)
+SELECT a.n, a.hash,
+        SUM((SIGN(a.session)>0)::int),
+        SUM((SIGN(a.session)<0)::int)
+FROM a
+GROUP BY a.n, a.hash;
+
+n:= n + 1; -- n = 2
+-- move to previous line, n=2
+INSERT INTO accTable (path, sl, sc, el, ec, n, hash, session, "left", isLastPrev, ori)
+SELECT initPath, sl, sc, el, ec, n, MD5(CONCAT(formatPath(c.path),c.sl,c.sc,c.el,c.ec,a.hash)),
+a.session, a."left"-1, true, a.ori+1
+FROM accTable a, (SELECT * FROM groupTable g ORDER BY g.pocc DESC, g.n DESC, g.tocc LIMIT 4*ceil(log(n,n))) g, calls c
+WHERE -- n-1 = a.n AND n-1 = g.n AND 
+a.hash = g.hash
+AND a.session = c.session
+AND a.left-1 = c.line
+AND origin = c.origin
+AND NOT (
+    formatPath(initPath) @> c.path
+    AND sl = c.sl
+    AND sc = c.sc
+    AND el = c.el
+    AND ec = c.ec);
+
+-- move to next line, n=2
+INSERT INTO accTable (n, hash, session, "left", isLastPrev, ori)
+SELECT n, MD5(CONCAT(a.hash,formatPath(c.path),c.sl,c.sc,c.el,c.ec)),
+a.session, a.left, false, a.ori
+FROM accTable a, (SELECT * FROM groupTable g ORDER BY g.pocc DESC, g.n DESC, g.tocc LIMIT 4*ceil(log(n,n))) g, calls c
+WHERE n-1 = a.n
+AND n-1 = g.n
+#+END_SRC
+*** TODO look at https://wiki.postgresql.org/wiki/Don't_Do_This
 * Emacs Settings                                                   :noexport:
 Local Variables:
 eval:    (setq org-confirm-babel-evaluate nil)
 eval:    (org-babel-do-load-languages 'org-babel-load-languages '( (shell . t) (R . t) (perl . t) (ditaa . t) ))
-eval:    (setq org-latex-listings 'minted) 
+eval:    (setq org-latex-listings 'minted)
 eval:    (add-to-list 'org-latex-packages-alist '("" "minted"))
 eval:    (setq org-src-fontify-natively t)
 eval:    (setq org-latex-pdf-process '("pdflatex -shell-escape -interaction nonstopmode -output-directory %o %f" "pdflatex -shell-escape -interaction nonstopmode -output-directory %o %f" "pdflatex -shell-escape -interaction nonstopmode -output-directory %o %f"))
