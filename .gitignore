@@ -2,3 +2,11 @@ synoptic/
 **/node_modules/
 **/types/
 **/out/
+plots/venv/
+_minted-notebook
+.#*
+notebook.tex
+pdfa.xmpi
+logs/*/from_unittest/
+stats/*/from_unittest/
+behavior-client/.vscode
