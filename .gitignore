@@ -10,3 +10,4 @@ pdfa.xmpi
 logs/*/from_unittest/
 stats/*/from_unittest/
 behavior-client/.vscode
+*.bbl
