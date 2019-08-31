@@ -1,296 +1,741 @@
 #+TITLE: Comparing test and production behavior for dynamic languages
-#+AUTHOR: Quentin Le Dilavrec
+#+SUBTITLE: Internship at KTH from May 13, 2019 to July 15, 2019
+#+AUTHOR: Quentin Le Dilavrec\inst{1}, supervised by Benoit Baudry\inst{2}
 #+LaTeX_CLASS: llncs
-#+LaTeX_CLASS_OPTIONS: [runningheads]
+# #+LaTeX_CLASS_OPTIONS: [runningheads]
+#+OPTIONS: title:t toc:nil
 #+LANGUAGE: american
 #+EMAIL:     (concat "quentin.le-dilavrec" at-sign "ens-rennes.fr")
 #+SEQ_TODO: APPT(a) TODO(t) NEXT(n) STARTED(s) WAITING(w) HALF(h) APPT(a) | DONE(d) CANCELLED(c) DEFERRED(f)
 #+HTML_HEAD: <link rel="stylesheet" type="text/css" href="org.css"/>
+#+LATEX_HEADER: \usepackage{titletoc}
 #+LATEX_HEADER: \usepackage[utf8]{inputenc}
 #+LATEX_HEADER: \usepackage[T1]{fontenc}
 #+LATEX_HEADER: \usepackage{graphicx}
 #+LATEX_HEADER: \usepackage{relsize}
+#+LATEX_HEADER: \usepackage{tikz}
 # #+LATEX_HEADER: \renewcommand\UrlFont{\color{blue}\rmfamily}
 #+LATEX_HEADER: \usepackage[american]{babel}
 #+LATEX_HEADER: \usepackage{minted}
 #+LATEX_HEADER: \usepackage{mdframed}
 #+LATEX_HEADER: \usepackage{color}
-#+LATEX_HEADER: \usepackage[a-1b]{pdfx}
-#+LATEX_HEADER: \usepackage{hyperref}
+# #+LATEX_HEADER: \usepackage[a-1b]{pdfx}
+# #+LATEX_HEADER: \usepackage{hyperref}
 #+LATEX_HEADER: \usepackage[normalem]{ulem}
+#+LATEX_HEADER: \tikzset{every picture/.style={line width=0.75pt}} %set default line width to 0.75pt        
+# #+LATEX_HEADER: \institute{\inst{1} Affil1 \and \inst{2} Affil2 \and \inst{3} Affil3}
+ # \inst{2} \and Author3 \inst{3}}
 #+MACRO: color @@latex:{\color{$1}@@$2@@latex:}@@
+# #+LATEX_HEADER: \def\email#1{\texttt{#1}}
+#+LATEX_HEADER: \institute{ Univ. Rennes \email{Quentin.Le-dilavrec@ens-rennes.fr} \and KTH \email{baudry@kth.se}}
+
+#+LATEX_HEADER: \usepackage{subfig}
+
+# #+LATEX_HEADER: \usepackage{showframe}
+
+
+# #+Begin_export latex
+# \author{Author1 \and Author2}
+# \maketitle
+# #+END_EXPORT
+
+#+BEGIN_abstract
+Wordpress is the most popular Content Manager System. It is Open-Source and
+power more than 34 percent of all websites.
+Any improvement of the quality of a system like WordPress can have a great impact, 
+be it on developers, website creators or end-users.
+Like other web-applications, WordPress is increasing its usage of the client-side.
+All those web-apps rely on JavaScript, which dynamic nature allows great flexibility
+but challenges previous methods of instrumentation, analysis, and visualization.
+#+END_abstract
 
 * Introduction
-Testing a software system is a fundamental process in software development 
-and considerable amount of the total development cost is reserved for software testing.
+# {{{color(red, some other numbers?)}}}
+Wordpress is the most popular Content Manager System.
+It is Open-Source and power more than 34 percent of all websites cite:w3techs_cms.
+The official repository contains approximately 47,000 plugins, cumulating 600 million downloads cite:cabot2018wordpress,
+and there is an entire economy based on these plugins.
+So any improvement of the quality of a system like WordPress can have a great impact, 
+be it on developers, website creators or end-users.
+In web-applications, increased usage of the front-end can have many advantages,
+it can off-load servers, provide more dynamic features, such as markdown.
+But integrating new languages and new compilation pipelines
+to a project as big as WordPress is not trivial.
 
-And extensive research {{{color(red,citations)}}} has been done to improve software quality,
-through methods revolving around test and verification.
-But there is a trade-off between the flexibility granted by a languages
-and the cost of its analysis.
-In the case of dynamic languages like javascript,
-whose success come from the low entry cost and flexibility for developers,
-it combine the imperative and functional paradigm and allow to evaluate code at runtime,
-all those degree of freedom make it very hard to gather the necessary information
-that will allow in depth analysis. 
-In this conditions even if tests are particularly adapted as they have access to runtime information,
-all the methods revolving around automated tests generation are lagging behind like analyzers
-because of the lack of runtime in formations.
-To close the gap we can try to harvest information at runtime 
-but it come at a cost, first like tests it consume computing power,
-second it might change the behavior of the system,
-and third due to the vast number of run variations present in complex systems,
-the harvested information needs to represent the real usage of the system.
-The apparent trade-of here is between the precision of the instruments 
-and the impact of those instruments on the studied systems.
-On one hand less precise traces representing runtime information will lessen the precision of the analysis,
-on the other hand instrumenting complex systems can impact performances and validity
-and can't be neglected as it will impede the accuracy of subsequent analysis.
-# such as type cast, function overloading, higher order functions, runtime evaluations.
-# In this conditions, tools like static analyzers are also less effective,
-# making tests even more important.
+Since a few years, the WordPress project has seen its proportion of javascript 
+quickly increase especially for the front-end part cite:cabot2018wordpress under the name Gutenberg.
+JavaScript is the programming language of the web,
+it runs on almost all devices through web browsers,
+and took the web thanks to his flexibility and accessibility.
+It is multi-paradigm and its dynamic nature allows anyone to fiddle
+with the behavior of any websites.
+Moreover, it evolves swiftly and not with any frictions,
+with a new version of the ECMAScript specification published almost every years,
+followed by major companies or foundations that try to implement new features in their respective web browsers.
+It makes projects that revolves around transcompilation the most popular and widespread javascript software,
+they mainly focus on compatibility
+between versions of the ECMAScript specification and the different web browsers
+but they also allow developers to add their own features to the language and try to push the language forward.
 
-We aim at useful analysis of widely used software,
-that allow us to give useful feedback on those software code quality, 
-through mainly the coverage by tests of behavior observable in field.
+But the dynamic nature of vanilla JavaScript make it hard to
+understand but also hard to analyze by only relying on source code.
+The most favored approach to this problem is to use typing systems
+and ask developers to annotate their code.
+There are therefore in addition to basic syntax checking and basic refactoring tools, 
+static analyzers that implement many of the features available in more static languages,
+such as intelli-sense, which is developed by Microsoft.
+But although these tools are very powerful, they are not adapted to some complex cases.
+The information accessible at runtime are thus needed to
+completely understand the behavior of some piece of code. 
+# This information can be harvested though instrumentation.
+The main contributions of this paper are:
+- An efficient and flexible instrumentation technique of JavaScript.
+- An algorithm that allows to compare traces and extract patterns.
+- A dynamic visualization that uses traces to see the codebase from a global point to fine grained-interactions.
+- An evaluation of the contributions on WordPress
 
-The results obtained can help developers understanding the behavior of a piece of software,
-but can also be feed to more classical automated test generation tools.
-# Making software based on dynamic languages/interpreters more reliable and competitive 
-# in domain previously favoring static languages.
-* Context
-* Logging javascript calls in browser and nodejs
- 
- high-level information on the behaviour of commonly used software,
-we looked at web applications running in browsers and also extensively tested with, for example, unit tests.
-Whether it is inside a browser or during compilation, the approach to gather data at runtime is done,
-by first adding a new step in the compilation/loading pipeline, 
-this we allow to proceed with the modification of the program, 
-that will intercept runtime data on the instrumented program.
-At runtime it is also necessary to expose a collection point to the instrumenting instruction
-that will handle the collection of data. 
-# interception in a pipeline -> intrumentation of content -> getting data from things added during instrumentation
-In the next subsections we will explain how we instrument actual javascript code to log function calls
-** logging
-In cite:wang17_behav_execut_compar Wang and al. log the calls at method level because prior work has argued that method call sequences
-represent the best cost-benefit tradeoff for reproducing field failures cite:Jin_2012.
-However in javascript there are many ways to create reusable pieces of code,
-- named function
-- anonymous function
-- object method
-- lambda expression
-- Function/eval
-- class methods
+* Dynamic analysis of javascript
+Dynamic software analysis is a way of analysing a software
+by executing its program while doing measurements.
+Accessing information only available at runtime,
+allow to complete a static analysis and deepen the understanding of a given piece of software.
+# TODO la figure shema:instru:general va servir de support à cette section
 
-The official Abstract Syntaxe Definition of /TreeJS/ regroup them as a type union under the name Function.
-As a common denominator they all be called using the standard call syntax
-Moreover they can also be used and exposed in different ways,
-- as an attribute of an object
-- returned by a function
-- passed as a parameter
-- in a variable
-
-This variability allow a great flexibility for the developer
-but makes analysis more complicated.
-Thus we decided to instrument all those kinds of functions by only adding an instruction at the start of the declaration body,
-this instruction append to the trace a new element made of the identifier of the function and parameters
-We tried to make it the least intrusive possible by only adding this one line and serializing the parameters,
-in the case of lambda expression without a block (only allowing an expression but no instructions)
-we choose to
-- transform it into a block, doesn't change call stack and wrap the expression in a return instruction
-- use the coma operator, not very known
-- wrap it with a call, problem with scope
-** dynamic instrumentation
-In a browser, we found 2 way to instrument javascript that allowed us to change the text of the script.
-One can be implemented using an extension which allow us to modify the the loading of the page at parsing,
-the other make use of the /DevTools/ API that allow us to intercept http requests and responses.
-The first method is most accessible one as it only need to install a new browser extension,
-the second one is more instrusive and need to be launch as a new process,
-but it allow us to access more low level API and make use of the cache, loading parallelization
-and offload the instrumentation to a background process.
 #+NAME: dynamic instrumentation shema
-#+ATTR_LaTeX: :float t :options frame=single,framesep=20pt,fontsize=\tiny
+#+LABEL: shema:instru:general
+#+CAPTION: The instrumentation can be done at multiple layers
+#+BEGIN_figure
+\centering
+\begin{tikzpicture}[x=0.75pt,y=0.75pt,yscale=-1,xscale=1]
+%uncomment if require: \path (0,432.3333435058594); %set diagram left start at 0, and has height of 432.3333435058594
+
+%Shape: Rectangle [id:dp3026421788878426] 
+\draw  [fill={rgb, 255:red, 255; green, 255; blue, 255 }  ,fill opacity=1 ] (268,232) -- (446.5,232) -- (446.5,308.57) -- (268,308.57) -- cycle ;
+%U Turn Arrow [id:dp979064853893437] 
+\draw  [fill={rgb, 255:red, 255; green, 255; blue, 255 }  ,fill opacity=1 ] (297,298) -- (297,328.19) .. controls (297,341.52) and (307.81,352.33) .. (321.15,352.33) -- (389.35,352.33) .. controls (402.69,352.33) and (413.5,341.52) .. (413.5,328.19) -- (413.5,308.64) -- (413.5,308.64) -- (396.14,298) -- (378.79,308.64) -- (378.79,308.64) -- (378.79,317.62) .. controls (378.79,317.62) and (378.79,317.62) .. (378.79,317.62) -- (331.71,317.62) .. controls (331.71,317.62) and (331.71,317.62) .. (331.71,317.62) -- (331.71,298) -- cycle ;
+%Curve Lines [id:da4591303345723843] 
+\draw    (201,328) .. controls (208.84,293) and (230.13,293.95) .. (262.03,290.5) ;
+\draw [shift={(264,290.29)}, rotate = 533.5799999999999] [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ][line width=0.75]  [draw opacity=0] (8.93,-4.29) -- (0,0) -- (8.93,4.29) -- cycle    ;
+
+%Curve Lines [id:da4688013647243001] 
+\draw    (199,223) .. controls (198.02,249.74) and (234.5,253.84) .. (263.25,255.34) ;
+\draw [shift={(265,255.43)}, rotate = 182.82] [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ][line width=0.75]  [draw opacity=0] (8.93,-4.29) -- (0,0) -- (8.93,4.29) -- cycle    ;
+
+%Shape: Rectangle [id:dp8700231437377708] 
+\draw  [fill={rgb, 255:red, 255; green, 255; blue, 255 }  ,fill opacity=1 ] (474.5,196.33) -- (535.5,196.33) -- (535.5,270.81) -- (474.5,270.81) -- cycle ;
+%Straight Lines [id:da1453252380530321] 
+\draw    (485.5,207.33) -- (523.5,207.33) ;
+
+
+%Straight Lines [id:da7639501705881624] 
+\draw    (485.5,218.33) -- (523.5,218.33) ;
+
+
+%Straight Lines [id:da4351145758238528] 
+\draw    (485.5,228.33) -- (523.36,228.33) ;
+
+
+%Straight Lines [id:da433822944052922] 
+\draw    (485.5,239.33) -- (523.36,239.33) ;
+
+
+%Straight Lines [id:da16085893260822814] 
+\draw    (485.5,249.33) -- (523.36,249.33) ;
+
+
+%Straight Lines [id:da4483544884190436] 
+\draw    (485.5,260.33) -- (523.23,260.33) ;
+
+
+%Shape: Rectangle [id:dp921446397856734] 
+\draw  [fill={rgb, 255:red, 255; green, 255; blue, 255 }  ,fill opacity=1 ] (279,257) -- (435.5,257) -- (435.5,298.29) -- (279,298.29) -- cycle ;
+%Curve Lines [id:da2916759373241835] 
+\draw  [dash pattern={on 4.5pt off 4.5pt}]  (449,287) .. controls (490.37,297.84) and (501.66,308.67) .. (503.9,268.85) ;
+\draw [shift={(504,267)}, rotate = 452.73] [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ][line width=0.75]  [draw opacity=0] (10.72,-5.15) -- (0,0) -- (10.72,5.15) -- (7.12,0) -- cycle    ;
+
+%Down Arrow [id:dp8343034078152856] 
+\draw  [fill={rgb, 255:red, 255; green, 255; blue, 255 }  ,fill opacity=1 ] (285,247.71) -- (285,247.71) -- (285,203.87) -- (345,203.87) -- (345,247.71) -- (345,247.71) -- (315,256.2) -- cycle ;
+%Shape: Rectangle [id:dp7427753069031857] 
+\draw  [fill={rgb, 255:red, 255; green, 255; blue, 255 }  ,fill opacity=1 ] (272,169.71) -- (361,169.71) -- (361,215.71) -- (272,215.71) -- cycle ;
+%Callout Right Arrow [id:dp9665594844903169] 
+\draw  [fill={rgb, 255:red, 255; green, 255; blue, 255 }  ,fill opacity=1 ] (380,116.71) -- (380,142) -- (341,142) -- (341,153.81) -- (341,153.81) -- (317.5,169.71) -- (294,153.81) -- (294,153.81) -- (294,142) -- (255,142) -- (255,116.71) -- cycle ;
+%Flowchart: Multidocument [id:dp4399489164870112] 
+\draw  [color={rgb, 255:red, 59; green, 59; blue, 59 }  ,draw opacity=1 ][fill={rgb, 255:red, 225; green, 225; blue, 225 }  ,fill opacity=1 ] (395.4,93.71) -- (481,93.71) -- (481,138.59) .. controls (427.5,138.59) and (438.2,154.78) .. (395.4,144.31) -- cycle ; \draw  [color={rgb, 255:red, 59; green, 59; blue, 59 }  ,draw opacity=1 ][fill={rgb, 255:red, 225; green, 225; blue, 225 }  ,fill opacity=1 ] (384.7,100.51) -- (470.3,100.51) -- (470.3,145.39) .. controls (416.8,145.39) and (427.5,161.58) .. (384.7,151.11) -- cycle ; \draw  [color={rgb, 255:red, 59; green, 59; blue, 59 }  ,draw opacity=1 ][fill={rgb, 255:red, 225; green, 225; blue, 225 }  ,fill opacity=1 ] (374,107.31) -- (459.6,107.31) -- (459.6,152.19) .. controls (406.1,152.19) and (416.8,168.38) .. (374,157.91) -- cycle ;
+%Flowchart: Document [id:dp250319717964991] 
+\draw  [fill={rgb, 255:red, 255; green, 255; blue, 255 }  ,fill opacity=1 ] (170,94.71) -- (272,94.71) -- (272,156.59) .. controls (208.25,156.59) and (221,178.9) .. (170,164.46) -- cycle ;
+%Straight Lines [id:da4826111042138357] 
+\draw  [dash pattern={on 4.5pt off 4.5pt}]  (354,257) -- (354,298) ;
+
+
+
+% Text Node
+\draw (221,129.21) node [scale=1.2] [align=left] {Source\\Code};
+% Text Node
+\draw (416,131.39) node [scale=1.2,color={rgb, 255:red, 101; green, 101; blue, 101 }  ,opacity=1 ] [align=left] {Libs};
+% Text Node
+\draw (399,244.71) node [scale=1.2] [align=left] {Runtime};
+% Text Node
+\draw (354,334) node  [align=left] {Interpreter};
+% Text Node
+\draw (318,151) node  [align=left] {(1)};
+% Text Node
+\draw (315,243) node  [align=left] {(2)};
+% Text Node
+\draw (317.5,193.87) node [scale=1] [align=left] {Compiled\\Code};
+% Text Node
+\draw (184,213.33) node  [align=left] {System\\Test};
+      % Text Node
+\draw (179,335.33) node  [align=left] {Unit\\Test};
+% Text Node
+\draw (498,185.33) node [scale=1.2] [align=left] {Trace};
+% Text Node
+\draw (397.75,276.81) node [scale=1] [align=left] {bytecode};
+% Text Node
+\draw (312.5,277.87) node [scale=1] [align=left] {Loaded\\Code};
+% Text Node
+\draw (314.17,227.33) node [scale=1] [align=left] {Loader};
+% Text Node
+\draw (321.17,126.33) node [scale=1] [align=left] {Compiler};
+% Text Node
+\draw (314,313) node  [align=left] {(3)};
+% Text Node
+\draw (234,241.29) node  [align=left] {use};
+% Text Node
+\draw (235,302.29) node  [align=left] {use};
+% Text Node
+\draw (491,306.29) node  [align=left] {measure};
+
+
+\end{tikzpicture}
+#+END_figure
+
+** Workload
+# TODO like wang17 We elected to work at the method
+#   level because prior work has argued that method call sequences
+#   represent the best cost-benefit tradeoff for reproducing field
+#   failures
+
+# TODO like wang17 For our experiments, we
+#    found that using k = 2 worked well in practice, whereas larger
+#    k caused InvariMint to run out of memory for some long traces.
+#    Models using larger k values would capture more execution data
+While the workload is the preliminary requirement for dynamic program analysis,
+acquiring such a workload remain a challenge.
+Today, research works that perform dynamic analysis rely on the following techniques to build workload:
+- In cite:wang17_behav_execut_compar Wang et al. compare in-field executions to unit test executions using inputs from Massive Open Online Courses (MOOCs)
+but also real world systems that use library software in a realistic way.
+- In cite:jiang2006multiresolution Jiang et al. detect abnormal traces produced by requests done to server-side software.
+
+The additional knowledge that can be acquired through dynamic analysis 
+depends above all on the representativeness and diversity of the inputs.
+These inputs can come directly from a user of the application and even through other software, 
+but also from robots during automated tests phases.
+In the domain of software testing, system tests are often semi-automated and very big,
+while unit tests are fully automated and simple.
+In most cases, the set of possible entries is infinite, as are the set of executions and therefore the set of tests.
+This inherent lack of exhaustiveness and the cost of running tests require us to limit the possible entries.
+# Moreover, multiple sets of inputs can represent the behavior,
+# so it limits the number of necessary tests.
+** Instrumenting to log run-time information
+To make dynamic analysis we need to gather dynamic information on our study subject.
+It is done by putting probes in the application,
+those probes will log information in the form of a trace that will later be analyzed.
+When these probes are only used to do measurements, 
+to avoid deviating from reality,
+they should not produce any side effect, even temporally.
+Thus it is necessary to choose what needs to be measured by the probes.
+The process of inserting these probes is called instrumentation,
+it can be done at multiple layers and at different times.
+Choosing when and where to instrument is mainly a matter of
+what we want to measure, but also what we have access to.
+To ease later analysis relative to a particular layer,
+the instrumentation should take place at the closest layer possible.
+If the aim is to provide information on source code,
+the easiest way is to instrument source code.
+In the case of when, 
+the instrumentation can be done at compile-time (1),
+during the loading (2) of the runtime or by the interpreter (3).
+# {{{color(red, I need some references?)}}},
+# interception in a pipeline -> intrumentation of content -> getting data from things added during instrumentation
+** Analysis
+
+The main ambition here is to make use of what has been done
+in software analysis on mature systems cite:wang17_behav_execut_compar
+and adapt them to the development pipeline of web applications.
+For a tool focussing on software quality improvement
+to be widely accepted by the developer community, 
+it should not produce false negative
+and warning should be ordered by priority.
+Moreover in our case due to its dynamic nature,
+one of the greatest difficulty when reading javascript code
+is to understand the context in which it will be executed.
+So on top of a warning, an optimization or a new test,
+if it requires the intervention of developers,
+some kind of contextualization should be provided.
+
+There is many ways to analyze runtime behaviors as shown in cite:wang17_behav_execut_compar,
+behavioral models based on the k-Tails algorithm can be used
+to compare mined models from the field to mined models from tests.
+But unfortunately, this algorithm needs refined traces,
+as computing the behavioral model of raw traces is a waste of resources if half the model end up thrown away.
+Considering the pace of changes in web development and the large and heterogeneous community
+there are many benefits to adapting behavioral models methods to the way those software are developed.
+# TODO use Bridging the gap btw sys and unit tests cite:alex2019bridging
+* Contribution
+We will now present our contributions, 
+starting with our approach to instrument a JavaScript project such as Gutenberg,
+then how we analyze traces to help improve the quality of unit tests and the overall understanding of the system.
+We choose to instrument JavaScript programs by modifying the text of the scripts,
+as it only needs to have access to the code somewhere in the general pipeline, thus being more flexible.
+# TODO other choices?
+# focus on what dev are modifying.
+** Instrumenting
+Whether inside a browser for system tests or in a headless interpreter during unit tests,
+the collection of execution data is carried out
+by adding a new processing step in the compiler, loader or interpreter,
+this new step is in charge of modifying the program before its execution,
+the modifications are mainly focused on intercepting and storing execution data for later use. 
+To instrument web applications, 
+we created an Abstract Syntax Tree transformation that can be easily integrated into most pipelines,
+it conforms to /TreeJS/, the official Abstract Syntaxe Definition of JavaScript 
+and is implemented through the /babeljs/ compiler.
+Technically this transformation is done using a simple visitor pattern,
+the object and nature of the modifications will be discussed next.
+*** Tracing
+# log the calls at method level because prior work has argued that method call sequences
+# represent the best cost-benefit tradeoff for reproducing field failures cite:Jin_2012.
+# TODO wang uses ? to argue this choice
+all data available at runtime is not practically possible,
+it is therefore essential to choose what should be measured.
+To compare executions in production to executions in tests for Java projects,
+Wang and al. cite:wang17_behav_execut_compar trace the methods calls,
+assuming that in Java, methods are the main reusable structures.
+In JavaScript, the main structure holding reusable pieces of code are functions.
+However there can be declared in many different ways, namely
+=lambda expression= ; =named function= ; =anonymous function= ; 
+=object method= ; =Function/eval= ; =class methods=.
+The official Abstract Syntax Definition 
+regroup them as a union under the name =Function=.
+As a common denominator they can all be called using the standard call syntax.
+But they can be used and exposed in different ways,
+as an attribute of an object ; returned by a function ;
+passed as a parameter; in a variable.
+This variability allows great flexibility for developers but makes the analysis more complicated.
+To make it the least intrusive possible,
+we decided to instrument all those kinds of functions
+by only adding an instruction at the start of the declaration body.
+Only the case of lambda expression without a block (only allowing an expression but no instructions),
+needed more modifications,
+so we choose to transform the body into a block 
+and wrap the original expression in a return instruction, as doesn't change the call stack.
+This transformation is common as older versions of javascript don't have lambda expressions.
+Back to the instruction content, it adds contextual information to the current trace.
+The most important information is the identifier of the called function,
+but we also tried to get the values of parameters to see if it was possible to extract some useful knowledge.
+Gathering parameters is complicated as it requires to serialize big, complex and recursive structures,
+so we choose to limit the serialization to very small depth.
+# (2) use the coma operator, not very known
+# (3) wrap it with a call, problem with scope
+*** Dynamic instrumentation
+can be done in a browser, we found 2 ways to instrument JavaScript that allow changing the text of the scripts.
+One can be implemented using a browser extension to modify the way a page is loaded,
+the other method uses the /DevTools/ API to intercept HTTP requests and responses.
+The first method is more accessible as it only needs to install a browser extension and have access to the DOM,
+the second one is more intrusive and needs to be launch as a new OS process,
+but it gives access to low-level API and by default make use of the cache, load scripts asynchronously
+and offload the instrumentation to a background process.
+The loading protocol of scripts in a web page[fn::https://html.spec.whatwg.org/multipage/scripting.html#script] 
+is very complex, to make it clearer
+the declaration of scripts can be split into 3 kinds, as shown in Listing [[shema:instru]].
+Those 3 kinds of script tags are used in different situations.
+The first one is an inline script so the content is part of the page,
+the second one loads a script file from the same domain as the page,
+and the third one loads a script file from a remote domain.
+For performances reasons non-inline scripts are asynchronously loaded, 
+and the file they are referring to can not be modified.
+Moreover, there is no http request to load inline scripts,
+it is thus only modifiable at a network level by modifying the original page.
+To avoid misses, each instrumentation needs to be done before (*) the javascript interpreter 
+parse and evaluate the content of the given scripts.
+
+# frame=single,framesep=20pt,
+#+NAME: dynamic instrumentation shema
+#+ATTR_LaTeX: :float t :options fontsize=\tiny
 #+LABEL: shema:instru
-#+CAPTION: Schema representing the different approaches to dynamic js instrumentation in browser
-#+BEGIN_SRC bash
-
---------<script src="xxxxx.js"></script>----<script src="xxxx.com/xxxx.js"></script>----<script>xxxxxxxxxx</script>--->
-         \                            /      \                                    /            \         /
- DOM      \                         (*)       \                                 (*)             \      (*) 
-          (1)                       /         (4)                               /                \-(6)-/
-            \                      /            \                              /
--------------v--------------------^--------------\----------------------------/----
-              \                  /                \                          /
- NETWORK      (2)              (3)                (2)                      (3)
-                \              /                    \                      /
------------------\------------/----------------------\--------------------/---------------------------
-                  \          /                        \                  /
-                                                       \----------(5)---/
-                                                          \    /
-
+#+CAPTION: The different approaches to interecpt different kind of script in the web browser
+#+BEGIN_SRC bash :eval never
+--------<script>xxxxxxxxxx</script>-----<script src="xxxxx.js"></script>----<script src="xxxx.com/xxxx.js"></script>----
+               \          /              \                            /      \                                    /   
+ DOM           (a)      (*)              (b)                        (*)      (c)                                (*)  
+                 \------/                  \                        /          \                                /   
+                                            \                      /            \                              /
+---------------------------------------------\--------------------/--------------\----------------------------/---------
+                                              \                  /                \                          /
+ BROWSER NETWORK LAYER                         \               (d)                 \                       (d)
+                                                \              /                    \                      /
+-------------------------------------------------\------------/----------------------\--------------------/-------------
+                                                  \          /                        \                  /
+ INTERNET                                                                              \-(c1)------(c2)-/
+                                                                                             \    /
 #+END_SRC
 
-#+RESULTS: shema:instru
+**** The DOM layer
+# it can cause major slow down on a page loading if it is not well made[fn::https://www.debugbear.com/blog/measuring-the-performance-impact-of-chrome-extensions#the-performance-impact-of-ad-blockers-and-privacy-tools]
+is were the global scope lies.
+Thanks to the Mutation Observer API[fn::https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver],
+it is possible to listen to parsing events
+and modify scripts loaded on the page, as the DOM is constructed.
+The script in charge of the instrumentation
+needs to be directly included in the original page as the first script,
+or dynamically added during loading.
+Dynamically adding script tags can be done with a web browser extension[fn::https://developer.chrome.com/extensions]
+or using an API[fn::https://chromedevtools.github.io/devtools-protocol/] accessible from outside of the web browser.
+When a parsing event is triggered, we handle the 3 kinds of scripts in different ways. 
+Inline scripts are the easiest to modify, in (a) we replace the content of the script with its instrumented version.
+For local scripts, in (b) the script file is programmatically fetched, then its content is instrumented and assigned as its new content, the script becomes inline.
+Remote scripts are more complex, in (c) we need to change the URL to redirect it to a local HTTP server.
+This local server will fetch the original script content (c1) then instrument it (c2) and finally send back the modified version.
 
-1) interception at DOM parsing, get the script tag as parameter, request script source, then instrument text of tag and populate innerhtml of tag
-2) interception of outgoing query, to redirect to other url or directly respond to query
-3) interception of response packet, intrument text in packet body then forward
-4) interception at DOM parsing, get the script tag, +get script source code, then instrument text of tag+, CORS domain policy forbid programmatic requests to remote domains, so need to modify url to go through intermediary server
-5) use an intermediary server to instrument script, need to change the original url
-6) interception at DOM parsing, get the script tag, then instrument inner text of tag
-*) parsing and evaluation of javascript tab by web browser
-*** (Intercepting) DOM parser events
-Our most accessible method to instrument javascript code rely on
-observing parse events [fn::https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver], 
-it allow us to modify scripts added on the page during DOM construction
-This _observer_ can be directly included in the original page as the first script tag,
-on dynamically added to pages with a web browser extension or using the DevTools API
-But in some cases this approach can change the behavior of script tags.
-actually local scripts need to be transformed into to inline scripts.
-The main problem of this method is the impact on performance
-because it can't make use of the web browser cache,
-thus it need to instrument the page at every load.
-{{{color(red,transformations examples? pseudo code?)}}}
-*** (Intercepting) http requests
-The second method is more efficient as it make use of the cache
-but it can only be implemented though the Fetch domain of Devtools API.
-{{{color(red,talk about pupeteer? here? or in the dynamic instrumentation section?)}}}
-to intercept and modify incoming responses to scripts requested.
-js parsing to instrument code is done in the puppeteer (nodejs) process,
-relieving the web browser of some stress and isolating the instrumentation process from the rest of the application. 
-Don't work on inline scripts at this point (maybe intercepting html request and parsing the DOM)
-More than just an extension, but Docker container available (in this case it needs X).
-** compile time instrumentation
-All of the big web applications uses some kind of compilation in there pipeline.
-It allow for greater development flexibility and automating retro-compatibility.
-We used created an AST transformation that integrate to most compilation pipelines,
-it conform to the official Abstract Syntaxe Definition of /TreeJS/ and is implemented through the /babeljs/ compiler.
-{{{color(red, talk about problem of instrumentation passes?)}}}
-* Making use of traces
-One of our main concern was to adapt state of the art software analysis methods
-to the development of web applications.
-In this condition some requirements are necessary:
-- low latency responses
-- no false negatives
-- incremental responses from most important to less important
-- no grand8 reports (no appearing and disappearing of error),
-  only increase importance level, never decrease without user implication
+This approach is functionally correct
+but it does not scale very well and end up with some noticeable impact on performances.
+On one hand it can't make use of the web browser cache,
+so it requires to instrument web pages at each load.
+On the other hand, the instrumentation logic is executed in the same environment
+as the web application, leading to perturbations during loading.
+**** Instrumenting http responses
+is the second method that we tried.
+It is more efficient as it makes use of the web browser cache
+but it can only be implemented through the Fetch domain[fn::https://chromedevtools.github.io/devtools-protocol/tot/Fetch] of the Devtools API.
+It is much more simple as we only need to intercept and instrument incoming responses to requested scripts.
+The instrumentation is done in another process,
+relieving the web browser of some stress and isolating the instrumentation logic from the rest of the application. 
+For now, it does not work on inline scripts but instrumenting HTML along with their inline scripts could be used.
+It uses Puppeteer[fn::https://github.com/GoogleChrome/puppeteer] as a wrapper around the DevTools API 
+to grant some more portability between OSes.
+*** Compile-time instrumentation
+is needed to instrument unit tests in most javascript projects.
+In fact, unit tests are often run out of web browsers, in more lightweight interpreter like /nodejs/.
+Moreover all of the big javascript projects use some kind of compilation pipeline,
+as it allows for greater development flexibility and automating retro-compatibility.
+The more used js compiler are /Browserify/ and /Babeljs/ used together.
+** Analyzing
+Considering the size and complexity of today web applications,
+any analysis tool aiming for real-world software should consider scalability as its major constraint.
+But improving a software can be split in 3 steps,
+detecting a problem, then finding its position and finally solving the problem.
+Detecting and finding problems don't need to be very precise nor exhaustive so it can accommodate with a big quantity of data.
+And solving a problem should only require a partial view of the available data.
+Moreover here traces produced through instrumentation are structured.
+So we choose to use and extend a relational database to analyze and process traces,
+then an interactive visualization to display feedback at different stages.
 
-Behavior of the system
-Extensive research [...] has been done to represent the behavior of software systems.  
-
-
-
-** Processing of traces {{{color(red,logs or traces?)}}}
+*** The processing of traces
 # One of the big challenges is to process the logs fast.
-** Representing mined information
-Another challenge is to relate the information mined from logs in a meaning and useful way.
+can be done in multiple ways.
+We tried to apply the methodology of Wang et al. cite:wang17_behav_execut_compar 
+on the analysis of runtime traces of calls to methods in Java,
+but due to the variety of symbols and the size of our traces,
+this method cannot meet our requirements for memory and efficiency.
+In our case realistic traces contain at least 1000 unique symbols and contain around 1 million entries.
+In fact, we are 2 orders of magnitude higher in terms of the number of symbols and the size of the traces
+compared to the maximum values evaluated in cite:beschastnikh2013unifying.
+Moreover, for a project like WordPress, no developer needs a representation this precise of the whole system.
+That is why we moved towards a more NLP-oriented approach, using n-grams.
+Using n-grams to analyze source code is already relevant as shown by Hindle, Abram, et al. cite:hindle2012naturalness.
+And n-grams of traces can be used to detect abnormal execution cite:jiang2006multiresolution.
+It allows processing traces halfway between purely statistical analysis and behavioral analysis.
+With this new information, on top of giving developers a representation of the context of the execution of their code,
+it might allow us to run algorithms like k-Tails more efficiently.
+But if done naively, enumerating and processing n-grams can also be wasteful,
+consequently, we choose a more recursive and incremental approach
+that enumerate n-grams starting from a set of given symbols.
+Thus it relies on the same assumption than k-Tails but only needs and gives a partial view.
+Anyway in the case of tests improvements,
+there is a cost at adding tests as they require maintenance and computing power,
+so by relying on statistics of already computed n-grams,
+we can on behaviors more relevant to test (see the evaluation section for examples).
+*** Interactive visualization
+can be used to get a global view on a large quantity of data.
+To ease the reading of that information,
+it is essential to aggregate relevant data while allowing to zoom on particular parts.
+In a large codebase such as Gutenberg,
+representing all functions declared in the codebase can be difficult,
+mostly because of the large number of functions
+--almost 10000 in the case of Gutenberg--
+but also because we want to show relations between functions.
+We produced two representation,
+that comes in complement to the code.
+The first representation uses a tree structure
+similar to those found in some popular IDE
+where the outline of source files are shown in the file explorer.
+Here in addition to the basic folding tree, the size and color of nodes are proportional to some metrics
+that we can compute from our traces.
 
-* Application to Wordpress
-Why Wordpress?
+#+NAME: example rectpacking
+#+LABEL: shema:example:rectpacking
+#+CAPTION: Example of our global view representation
+#+ATTR_ORG: :width 600
+#+ATTR_LATEX: :height 2.5in
+[[file:images/nested_rec_example.pdf]]
+
+Figure [[shema:example:rectpacking]] is an example of this representation.
+With the size of nodes that are proportional to the usage of function in production
+and the colors are proportional to the usage of function in unit tests.
+It allows to easily see functions used many times but never tested.
+With this representation, it is even possible to represent the parameters passed to functions or other structures similar to trees.
+However there are some limitations,
+as it is necessary to keep the proportion right to be able to compare elements.
+Circles are not usable to represent nodes because of geometric limitations, 
+but we successfully used rectangles in this particular layout that also allows seeing the name of nodes.
+In this layout, the size of a node is its height.
+The metrics usable to compute the size of nodes are also limited as they need to be aggregated with a sum.
+Where used in a system that allows interactivity, it is possible to zoom on nodes
+and using an IDE it is possible to jump to the code and to the next representation that we will be presented in the next paragraph. 
+
+The second representation shows the context of functions during execution.
+It can be used on a function to understand its context of use
+and allows grasping how a function is used
+by presenting which context should be reproduced to test that function efficiently.
+It dynamically mines the traces using the processing method presented earlier.
+Here the produced n-grams are fused to construct a graph with the starting function at its center.
+Each node represents calls to a function, the width represents the number of calls made to this function,
+each transition width represents the number of times a sequence of calls was made.
+Nodes are given the same color when they represent calls to the same function.
+Here it is possible to dynamically search for bigger n-grams and using an IDE, it is also possible to jump to code.
+Moreover to compensate for the merge of nodes, 
+while hovering a link, it highlights other links contained in the same n-grams.
+This representation is made to also accommodate a model mined with a k-tail algorithm.
+As an example, the Figure [[fig:flow:loop]] shows the context of a function called in a loop 
+that always start after a unique function
+and end with another unique function.
+
+#+NAME: loop
+#+CAPTION: Context of a function called in a loop
+#+LABEL: fig:flow:loop
+#+ATTR_ORG: :width 600
+#+ATTR_LATEX: :width 0.5\textwidth
+[[file:images/flowgraph4.png]]
+
+# ** producing useful feedback
+# Zeller and al. cite:alex2019bridging show how to synthesize new unit tests based on system tests.
+
+# impact
+
+# the majority use vs code
+# **** Representing mined information
+  # Another challenge is to relate the information mined from logs in a meaning and useful way.
+* Evaluation
+We will now show the results obtained through the analysis of Gutenberg,
+trough a simple procedure and using limited inputs
+to show that even with a simple experimental procedure,
+it is possible to analyze a large codebase and propose improving modifications.
 ** Experimental procedure
-*** Production
-Multiple people with their personal computer do things with an instance of /Wordpress/ shared over local network
-*** Tests
-Run on a intel I7, gtx960M, 8Go RAM laptop.
-** Results
-*** distribution of calls on dataset
-#+BEGIN_EXAMPLE
-production/test calls sorted by number of occurences of production.
-y axis show # of calls
-x axis show calls, only some interesting calls should be visible.
-#+END_EXAMPLE
+all the experiments were run on an /ArchLinux/, /intel/ /i7/ laptop with 8go ram.
+the source code of WordPress was first instrumented during compilation using our AST transformation.
+production traces were made on an instrumented chrome browser,
+the user inputs are reproducing the writing of a very short post only made of text.
+Tests traces were made by running the unit tests with /NodeJs/, each run produces many traces, one for each test.
+the following results will present 12 production traces and 3 sets of unit test traces each containing 767 traces.
+for a total of 6.3 million calls
+** Macro Analysis
+We can get a fist look at our data in Figure [[shema:venn]] using a Venn diagram.
+At first glance, we can see that our system tests only used a small part of declared functions,
+nonetheless around one-third of used functions were not tested.
+with this figure, it can be concluded that at least 1122 functions need new tests.
+But we can't conclude anything on functions tested but not used as our set of input is restricted.
+
+# \begin{figure}[htp]
+# \centering
+# \subfloat[Caption1\label{s:venn}]{%
+#   \includegraphics[width=0.5\textwidth]{images/venn_functions.pdf}%
+# }\hfil
+# \subfloat[Caption1\label{fig:subim2}]{%
+#   \includegraphics[width=0.5\textwidth]{images/venn_functions.pdf}%
+# }
+
+# \caption{Caption for this figure with two images}
+# \label{fig:image2}
+
+# \end{figure}
+
+#+NAME: venn
+#+LABEL: shema:venn
+#+CAPTION: Venn Diagram on functions in Gutenberg
+#+ATTR_ORG: :width 600
+#+ATTR_LATEX: :height 5cm
+[[file:images/venn_functions.pdf]]
 
 #+NAME: wordpress ditrib
-#+CAPTION: Distribution of number of calls per JS functions for production (grey) for tests (red) in traces of Wordpress 
+#+CAPTION: Test coverage of functions used in production
+#+LABEL: fig:rectpacking
 #+ATTR_ORG: :width 600
-#+ATTR_LATEX: :width 5in
-[[file:plots/distrib.png]]
-*** distribution of calls on dataset per gutenberg package
-#+BEGIN_EXAMPLE
-production/test calls sorted by number of occurences of production.
-y axis show # of calls, (log2 scale)
-x axis show calls, only some interesting calls should be visible.
-data faceted by package
-#+END_EXAMPLE
+#+ATTR_LATEX: :width 0.75\textwidth
+[[file:images/nested_rec_exp_with_color_bar.pdf]]
 
-#+NAME: wordpress multi-ditrib
-#+CAPTION: Distribution of number of calls per JS functions for production (grey) for tests (red) in traces of Wordpress split by packages 
-#+ATTR_ORG: :width 600
-[[file:plots/multidistrib3.png]]
+To see which functions need new tests,
+the Figure [[fig:rectpacking]] present a static view of 
+the first interactive viewer presented in the contribution.
+The precision of this representation allows to 
+find the most used functions that are never tested.
+As explained in the contribution,
+the structure of the code base is preserved down to the functions,
+data available on functions are aggregated to form the nodes of the tree,
+it is thus possible to traverse the tree and find functions that need new tests by order of priority. 
+On the one hand, the more a function is called, the larger its rectangle is. 
+On the other hand, the more a function is used without being tested, the more the color tends towards red, 
+and the more the function is tested, the more its color tends towards dark green.
 
-#+NAME: wordpress multi-ditrib
-#+CAPTION: Distribution of number of calls per JS functions for production (grey) for tests (red) in traces of Wordpress split by packages with values truncated to 1000 calls, to make it bigger.
-#+ATTR_ORG: :width 600
-[[file:plots/multidistrib.png]]
-*** Venn diagram with symbols of functions
-#+BEGIN_SRC ditaa :file images/venn_prod_test_calls_symbols.png
 
-  +------------------------------------------------------+
-  | instrumented                                         |
-  | symbols              +-------------------------+     |
-  |                      |                         |     |
-  |         +------------+----------+              |     |
-  |         |            |          |              |     |
-  |         |            |  prod    |    prod      |     |
-  |         |            |   n      |              |     |
-  |         |    test    |  test    |              |     |
-  |         |            |          |              |     |
-  |         |            +----------+--------------+     |
-  |         |                       |                    |
-  |         +-----------------------+                    |
-  |                                                      |
-  +------------------------------------------------------+
+# file:images/circlepack_cleaned_printed.pdf
 
-#+END_SRC
-*** Venn diagram with function's symbols and parameters
-#+BEGIN_SRC ditaa :file images/venn_prod_test_call_symbols_and_parameters.png
+The Figure [[fig:rectpacking]] shows that 62% of used functions are tested at least one time
+and the functions never unit tested makes it for 6.8% of calls.
+The interactive version was used to find a few functions needing new tests.
+*** venn :noexport:
+We use a Venn Diagram to compare the set of functions used in production to the set of function used in tests,
+to globally assess of the quality of tests.
+# ***** Venn diagram with symbols of functions
+  #+BEGIN_SRC ditaa :file images/venn_prod_test_calls_symbols.png
 
-                         +-------------------------+     
-                         |                         |     
-            +------------+----------+              |     
-            |            |          |              |     
-            |            |  prod    |    prod      |     
-            |            |   n      |              |     
-            |    test    |  test    |              |     
-            |            |          |              |     
-            |            +----------+--------------+     
-            |                       |                    
-            +-----------------------+                    
+    +------------------------------------------------------+
+    | instrumented                                         |
+    | symbols              +-------------------------+     |
+    |                      |                         |     |
+    |         +------------+----------+              |     |
+    |         |            |          |              |     |
+    |         |            |  prod    |    prod      |     |
+    |         |            |   n      |              |     |
+    |         |    test    |  test    |              |     |
+    |         |            |          |              |     |
+    |         |            +----------+--------------+     |
+    |         |                       |                    |
+    |         +-----------------------+                    |
+    |                                                      |
+    +------------------------------------------------------+
 
-#+END_SRC
-*** Precise analysis of methods/functions usage context from field compared to tests 
+  #+END_SRC
+# ***** Venn diagram with function's symbols and parameters
+  #+BEGIN_SRC ditaa :file images/venn_prod_test_call_symbols_and_parameters.png
+
+                           +-------------------------+     
+                           |                         |     
+              +------------+----------+              |     
+              |            |          |              |     
+              |            |  prod    |    prod      |     
+              |            |   n      |              |     
+              |    test    |  test    |              |     
+              |            |          |              |     
+              |            +----------+--------------+     
+              |                       |                    
+              +-----------------------+                    
+
+  #+END_SRC
+***** distribution of calls on dataset per gutenberg package       :noexport:
+  #+BEGIN_EXAMPLE
+  production/test calls sorted by number of occurences of production.
+  y axis show # of calls
+  x axis show calls, only some interesting calls should be visible.
+  #+END_EXAMPLE
+
+  #+NAME: wordpress ditrib
+  #+CAPTION: Coverage of functions called in production (grey) by functions called in test (red), red dot are showing cases when functions are used in production but never used in test 
+  #+ATTR_ORG: :width 600
+  #+ATTR_LATEX: :width 5in
+  [[file:plots/distrib.png]]
+  #+BEGIN_EXAMPLE
+  production/test calls sorted by number of occurences of production.
+  y axis show # of calls, (log2 scale)
+  x axis show calls, only some interesting calls should be visible.
+  data faceted by package
+  #+END_EXAMPLE
+
+  #+NAME: wordpress multi-ditrib
+  #+CAPTION: Coverage of functions called in production (grey) by functions called in test (red) split by plugin, red dot are showing cases when functions are used in production but never used in test  
+  #+ATTR_ORG: :width 600
+  [[file:plots/multidistrib3.png]]
+***** aaa  :noexport:
+  #+NAME: wordpress multi-ditrib
+  #+CAPTION: Distribution of number of calls per JS functions for production (grey) for tests (red) in traces of Wordpress split by packages with values truncated to 1000 calls, to make it bigger.
+  #+ATTR_ORG: :width 600
+  [[file:plots/multidistrib.png]]
+** Preparing new tests
+# Figure loop;deprecated;explosion;long chain;
+
+In the previous section, functions lacking tests were found,
+here the aim is to understand the context of these functions to produce the most relevant unit tests.
+The second representation presented in the contribution is designed to achieve that goal.
+
+\begin{figure}[htp]
+\centering
+\subfloat[Sequence of non-tested functions\label{fig:flow:linear}]{%
+  \includegraphics[width=0.45\textwidth]{images/instant3.pdf}%
+}\hfil
+\subfloat[Called in a loop\label{fig:flow:loop2}]{%
+  \includegraphics[width=0.45\textwidth]{images/instant4_clean.pdf}%
+}
+\caption{Context of some functions}
+\label{fig:image2}
+\end{figure}
+
+On the left, the figure \ref{fig:flow:linear} shows a long sequence of calls,
+containing multiple functions never tested
+by reproducing this context it would be possible to add a first test to 6 functions in one go
+thus reducing the overhead.
+looking in more detail on those non-tested functions, they are simple accessors
+and the pale functions are well tested, but looking at the code,
+they are part of a fairly complex program made of many closures (functions returning functions).
+so more tests won't do any harm here.
+the figure \ref{fig:flow:loop2} shows a loop,
+it is similar to the example presented in the contribution but in a more complicated case.
+There are more branches at the start and the end of the context
+so the new tests skeleton should be made of these sequence of calls.
+Once the sequence is chosen, it is even possible to fetch the parameters in the traces,
+and fill up the calls parameters.
+
+
+# #+NAME: wordpress createNamespace context
+# #+ATTR_ORG: :width 600
+# #+LABEL: fig:flow:loop
+# #+CAPTION: context usage of a function from field compared to tests, the width of rectangles and transitions is proportional to the number of call in production and functions lacking test are darker
+# [[file:images/flowgraph4.png]]
+
+***** Precise analysis of methods/functions usage context from field compared to tests :noexport:
+
 #+NAME: wordpress createNamespace context
-#+CAPTION: createNamespace usage context from field compared to tests, la largeur d'un noeud est proportionnnel à son nombre d'appels en production
-#+ATTR_ORG: :width 600
-[[file:images/flowgraph.png]]
-
-#+NAME: wordpress createNamespace context
-#+CAPTION: callback function wrapping a retruned selector in createNamespace, usage context from field compared to tests, la couleur des noeuds reprentente le rapport entre le nombre d'utilisations en production par rapport aux tests
-#+ATTR_ORG: :width 600
-[[file:images/flowgraph1.png]]
+  #+CAPTION: callback function wrapping a retruned selector in createNamespace, usage context from field compared to tests, la couleur des noeuds reprentente le rapport entre le nombre d'utilisations en production par rapport aux tests
+  #+ATTR_ORG: :width 600
+  [[file:images/flowgraph1.png]]
 
 * Conclusion
-The results obtained can help developers understanding the behavior of a piece of software,
-but can also be feed to more classical automated test generation tools.
-* References                                  :ignore:
+We have created an analysis tool for dynamic languages,
+capable of tracing information accessible at runtime,
+then process it 
+and finally display useful feedback.
+The results obtained can help developers at understanding the behavior of a piece of software,
+but it can also be feed to more classical automated test generation tools.
+This tool has been evaluated on WordPress 
+and could easily be adapted to other web applications or JavaScript packages. 
+For now, it is integrated into Visual Studio Code to interact with source code.
+The repository containing the resources presented in this report can be found at [[https://github.com/quentinLeDilavrec/m1_internship]]. 
+There are many improvements possible on this tool, some of them were mentioned earlier
+but the aim is to push developers on taking this tool further by adapting it to their needs.
+# * References                                                         :ignore:
 bibliographystyle:plain
 bibliography:references.bib
 ** links                                                  :noexport:
 # splncs splncs03 plain
-- [[https://doi.org/10.1016/j.infsof.2019.05.008][On the Use of Usage Patterns from Telemetry Data for Test Case Prioritization]]
-- [[https://people.cs.umass.edu/~brun/pubs/pubs/Wang17icst.pdf][Behavioral Execution Comparison: Are Tests Representative of Field Behavior?]]
+- [[https://doi.org/10.1016/j.infsof.2019.05.008][On the Use of Usage Patterns from Telemetry Data for Test Case Prioritization]] Tests improvements
+- [[https://people.cs.umass.edu/~brun/pubs/pubs/Wang17icst.pdf][Behavioral Execution Comparison: Are Tests Representative of Field Behavior?]] paper using synoptic
 - [[https://github.com/INRIA/intertrace]]
-- https://people.inf.ethz.ch/suz/publications/natural.pdf https://github.com/labri-progress/naturalness-js
-- [[https://arxiv.org/pdf/1906.01463.pdf]]
+- https://people.inf.ethz.ch/suz/publications/natural.pdf https://github.com/labri-progress/naturalness-js application of natural language processing to computer software
+- [[https://arxiv.org/pdf/1906.01463.pdf][Bridging the Gap between Unit Test Generation and System Test Generation]] feedback loop
 - [[http://ceur-ws.org/Vol-971/paper21.pdf]]
 - http://citeseerx.ist.psu.edu/viewdoc/download;jsessionid=877A01775995830BB127116FB11BAB49?doi=10.1.1.323.3411&rep=rep1&type=pdf
-- [[https://link.springer.com/content/pdf/10.1007%2Fs10270-019-00737-w.pdf]]
 - [[https://cs.uwaterloo.ca/~m2nagapp/courses/CS846/1171/papers/hindle_icse12.pdf][Lossless compaction of model execution traces]]
 - [[https://livablesoftware.com/conflictjs-javascript-libraries-conflicts/]]
 
 # # eval:    (setq org-latex-pdf-process '("pdflatex -bibtex -shell-escape -interaction nonstopmode -output-directory %o %f" "pdflatex -bibtex -shell-escape -interaction nonstopmode -output-directory %o %f" "pdflatex -bibtex -shell-escape -interaction nonstopmode -output-directory %o %f"))
-* Journal                                                          :noexport:
+* Journal                                                         :noexport:
 ** [2019-05-15 Wed]
 *** DONE use Iroh with Mutation Observer to wrap scripts
 ** [2019-05-16 Thu]
@@ -1507,10 +1952,10 @@ use distribution data?
 *** DONE use https://github.com/Jacarte/bufferedDTW/blob/master/docs/ngram.md
 *** STARTED read [[https://cs.uwaterloo.ca/~m2nagapp/courses/CS846/1171/papers/hindle_icse12.pdf][Lossless compaction of model execution traces]]
 - xDSML -> models on xDSL
-- my traces are only a list of transitions compared to the heterogenous traces targeted by this paper
+- my traces are only a list of transitions compared to the heterogeneous traces targeted by this paper
 *** DONE look at [[https://livablesoftware.com/conflictjs-javascript-libraries-conflicts/]]
     CLOSED: [2019-06-20 Thu 11:03]
-Out of scope for the internship but the instrumentation tool could be modified to get those king of events (assignments on global scope things)
+Out of scope for the internship but the instrumentation tool could be modified to get those kinds of events (assignments on global scope things)
 - One way is to wrap global variables with Proxies
 - Could also monitor assignments and filter those accessible from global scope :: I mean do the assignment normally then check is the left hand side can be accessed from a specially made function (that live in the global scope).
 *** DONE put links in references
@@ -2224,6 +2669,7 @@ FROM initPaths i, LATERAL getngrams(formatPath(i.path),i.sl,i.sc,i.el,i.ec,2::sm
 ** [2019-06-29 Sat]
 *** TODO see http://smlab.cs.tau.ac.il/xlog/lc-ase14.pdf with benoit
 * Emacs Settings                                                   :noexport:
+#    (ox-extras-activate '(ignore-headlines))
 Local Variables:
 eval:    (setq org-confirm-babel-evaluate nil)
 eval:    (org-babel-do-load-languages 'org-babel-load-languages '( (shell . t) (R . t) (perl . t) (ditaa . t) ))
@@ -2232,6 +2678,7 @@ eval:    (add-to-list 'org-latex-packages-alist '("" "minted"))
 eval:    (setq org-src-fontify-natively t)
 eval:    (setq org-image-actual-width '(600))
 eval:    (unless (boundp 'org-latex-classes) (setq org-latex-classes nil))
+eval:    (setq org-latex-with-hyperref nil)
 eval:    (add-to-list 'org-latex-classes '("llncs" "\\documentclass{llncs}\n \[NO-DEFAULT-PACKAGES]\n \[EXTRA]\n"  ("\\section{%s}" . "\\section*{%s}") ("\\subsection{%s}" . "\\subsection*{%s}")                       ("\\subsubsection{%s}" . "\\subsubsection*{%s}")                       ("\\paragraph{%s}" . "\\paragraph*{%s}")                       ("\\subparagraph{%s}" . "\\subparagraph*{%s}")))
 eval:    (setq org-latex-pdf-process (list "latexmk -bibtex -shell-escape -f -pdf %F"))
 End:
