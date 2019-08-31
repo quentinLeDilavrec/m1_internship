@@ -198,10 +198,14 @@ class DbPath {
 const posOrZero = (n: number) => n >= 0 ? n : 0
 
 export function getMultiDistrib(path = 'packages/block*/**/*', order = 'pocc', origin = 'gutenberg') {
-  const group_columns = ['origin', 'path', 'sl', 'sc', 'el', 'ec', 'params::text']
+  const group_columns = ['origin', 'path', 'sl', 'sc', 'el', 'ec']
   const formatedPath = DbPath.prototype.from_unix(path)
-  const select_columns = [`formatPath(subpath(path,0,${posOrZero(formatedPath.first_star_pos()) + 1})) as package`,
-  `CONCAT(formatPath(subpath(path,${posOrZero(formatedPath.first_star_pos()) + 1})), ':', sl, ':', sc, ':', el, ':', ec) as fct`]
+  const f_s_p = formatedPath.first_star_pos()
+  const select_columns = [`formatPath(subpath(path,0,${posOrZero(f_s_p) + 1})) as package`,
+  `CONCAT(formatPath(subpath(path,
+    (CASE WHEN nlevel(path)>=${posOrZero(f_s_p) + 1} THEN nlevel(path)-1
+    ELSE ${posOrZero(f_s_p) + 1} END) 
+    )), ':', sl, ':', sc, ':', el, ':', ec) as fct`]
   console.error(select_columns)
   const req = `
 SELECT ${select_columns.map(x => x + ',').join(' ')}
@@ -209,7 +213,9 @@ SUM((SIGN(session)>0)::int) as pocc,
 SUM((SIGN(session)<0)::int) as tocc
 FROM calls c
 WHERE origin = $1
+AND (session > 3 OR session < 0)
 AND path ~ '${formatedPath.to_ltree()}'
+AND not path ~ '*.test.*'
 GROUP BY ${group_columns.join(', ')}
 ORDER BY ${order} DESC, ${order === 'pocc' ? 'tocc' : 'pocc'}
 ;
@@ -301,7 +307,7 @@ ORDER BY g.pocc DESC, g.tocc;
 export function getTrace(session, computation: undefined | 'mean_pos' = undefined, origin = 'gutenberg') {
   if (computation === 'mean_pos') {
     const req = `
-SELECT MIN(session) as minsession, median(line) as minline, unnest(percentile_disc(array[0.25,0.5,0.75,1]) WITHIN GROUP (ORDER BY val)) as avgline
+SELECT MIN(session) as minsession, median(line) as minline, AVG(line) as avgline
 FROM calls
 WHERE origin = $1
 AND session > 0
@@ -321,8 +327,6 @@ FROM calls
 WHERE origin = $1
 AND session > 0
 AND nlevel(path)>1
-AND line > 30000
-AND line < 35000
 ORDER BY session,line;
   `
     return req_as_stream(req, [origin],
@@ -336,24 +340,26 @@ ORDER BY session,line;
 
 if (typeof require != 'undefined' && require.main == module) {
   const out = process.argv.length < 3 ? process.stdout : fs.createWriteStream(process.argv[2])
-  // getDistrib().pipe(out);
-  // getDistrib('packages/blocks/src/api/registration.js', 2).pipe(out);
-  // getDistrib('packages/data/src/namespace-store/index.js', 2).pipe(out);
-  // getDistrib('packages/data/src/registry.js', 2).pipe(out);
-  // getDistrib('packages/data/src/components/with-select/index.js', 2).pipe(out);
-  // getDistrib('packages/i18n/*', 2).pipe(out);
-  // getDistrib('packages/block*/**/*', 2).pipe(out);
-  // getDistrib('packages/blocks/src/store/*', 2).pipe(out);
-  // getDistrib('packages/data/src/**/*', 2).pipe(out);
-  // getDistrib('packages/blocks/src/store/selectors.js', 2).pipe(out);
-  // getDistrib('packages/**/*', 1).pipe(out);
-  // getDistrib('packages/data/src/registry.js', 2).pipe(out);
+  // getDistrib()
+  // getDistrib('packages/blocks/src/api/registration.js', 2)
+  // getDistrib('packages/data/src/namespace-store/index.js', 2)
+  // getDistrib('packages/data/src/registry.js', 2)
+  // getDistrib('packages/data/src/components/with-select/index.js', 2)
+  // getDistrib('packages/i18n/*', 2)
+  // getDistrib('packages/block*/**/*', 2)
+  // getDistrib('packages/blocks/src/store/*', 2)
+  // getDistrib('packages/data/src/**/*', 2)
+  // getDistrib('packages/blocks/src/store/selectors.js', 2)
+  // getDistrib('packages/**/*', 1)
+  // getDistrib('packages/data/src/registry.js', 2)
 
-  // getTrace(2).pipe(out)
-  getTrace(2,'mean_pos').pipe(out)
+  // getTrace(2)
+  // getTrace(2,'mean_pos')
 
-  // getMultiDistrib('packages/*/**/*').pipe(out);
-  // getMultiDistribRoot().pipe(out); // just noise
+  // getMultiDistrib('packages/*/**/*')
+  getMultiDistrib('packages/core-data/src/**/*')
+  // getMultiDistribRoot() // just noise
+  .pipe(out)
   // console.log(formatPath('packages/block*/**/*'))
   // console.log(formatPath('packages/blocks/**/*.js'))
   // console.log(formatPath('packages/block*/**/coucou*.js'))

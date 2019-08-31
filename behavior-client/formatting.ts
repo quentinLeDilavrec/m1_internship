@@ -80,10 +80,20 @@ export function reformatFile(inPath: string[] | string, outPath: string, getSess
 }
 
 if (typeof require != 'undefined' && require.main == module) {
-  reformatFile(process.argv.slice(2), 'output4.csv', 1);
+  reformatFile(process.argv.slice(2), 'output.csv', 4);
   // reformatFile('/home/quentin/js_intercept_data/unit/v2/', 'output2.csv', -1, /^0\.[0-9]+$/);
   // reformatFile('/home/quentin/Documents/cours/M1/stage/ongit/start-instrumented-chrome/logs/', 'output.csv', 1, /^[0-9]+$/);
 
   // count_ngrams(readStream, parseInt(process.argv[3]),process.argv[4] as any).pipe(process.stdout)
   // count_ngrams('/home/quentin/Documents/cours/M1/stage/ongit/logs/from_sandboxes/1', 10)
+//   ../logs/gutenberg/from_systemtest/just_open_new_post/0 4
+// ../logs/gutenberg/from_systemtest/just_open_new_post/1 5
+// ../logs/gutenberg/from_systemtest/just_open_new_post/2 6
+// ../logs/gutenberg/from_systemtest/just_open_new_post/3 7
+// ../logs/gutenberg/from_systemtest/just_open_new_post/4 8
+// ../logs/gutenberg/from_systemtest/just_open_new_post/5 9
+// ../logs/gutenberg/from_systemtest/just_open_new_post/6 10
+// ../logs/gutenberg/from_systemtest/just_open_new_post/7 11
+// ../logs/gutenberg/from_systemtest/just_open_new_post/8 12
+// ../logs/gutenberg/from_systemtest/just_open_new_post/9 13
 }
